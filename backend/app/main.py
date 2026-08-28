@@ -192,6 +192,15 @@ async def remove_background_endpoint(
             413, f"File troppo grande (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)"
         )
 
+    # Il download dei pesi (fino a 973 MB) avviene PRIMA di occupare uno slot:
+    # dentro lo slot bloccherebbe per minuti una delle poche corsie di inferenza,
+    # facendo scadere in coda tutte le altre richieste.
+    try:
+        await asyncio.to_thread(warmup, model)
+    except Exception:
+        logger.exception("Impossibile preparare il modello %s", model)
+        raise HTTPException(503, f"Modello {model} non disponibile, riprova")
+
     queued = time.perf_counter()
     try:
         async with inference_slot():
