@@ -9,6 +9,30 @@ from app.services import removal
 from tests.conftest import upload
 
 
+def test_una_sola_creazione_di_sessione_sotto_concorrenza(monkeypatch):
+    """Due richieste sullo stesso modello non devono scaricarlo due volte."""
+    import threading
+    import time
+
+    creazioni = []
+
+    def finta(model, **kwargs):
+        creazioni.append(model)
+        time.sleep(0.2)  # simula il download dei pesi
+        return object()
+
+    removal._crea_sessione.cache_clear()
+    monkeypatch.setattr(removal, "new_session", finta)
+    thread = [threading.Thread(target=removal.get_session, args=("u2net",)) for _ in range(4)]
+    for t in thread:
+        t.start()
+    for t in thread:
+        t.join()
+    removal._crea_sessione.cache_clear()
+
+    assert creazioni == ["u2net"]
+
+
 def test_health(client):
     r = client.get("/api/health")
     assert r.status_code == 200

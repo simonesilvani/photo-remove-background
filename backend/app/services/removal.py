@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import logging
 import pathlib
+import threading
 from functools import lru_cache
 from typing import Optional, Tuple
 
@@ -47,14 +48,29 @@ def _providers() -> list[str]:
 
 
 @lru_cache(maxsize=4)
+def _crea_sessione(model: str):
+    providers = _providers()
+    logger.info("Modello %s su %s", model, providers[0])
+    return new_session(model, providers=providers)
+
+
+_lock_registro = threading.Lock()
+_lock_modello: dict[str, threading.Lock] = {}
+
+
 def get_session(model: str):
     """Sessione onnxruntime per un modello, creata una sola volta.
 
     Il primo utilizzo di un modello ne scarica i pesi in ~/.rembg/models.
+    `lru_cache` da solo non basta: non impedisce a due richieste simultanee di
+    entrare insieme nella funzione e far partire due download dello stesso file
+    (fino a 973 MB, che si sovrascriverebbero a vicenda). Il lock e' per modello,
+    cosi' chi ne usa uno gia' in cache non aspetta il download di un altro.
     """
-    providers = _providers()
-    logger.info("Modello %s su %s", model, providers[0])
-    return new_session(model, providers=providers)
+    with _lock_registro:
+        lock = _lock_modello.setdefault(model, threading.Lock())
+    with lock:
+        return _crea_sessione(model)
 
 
 _CLASSI_SESSIONE = {c.name(): c for c in sessions_class}
