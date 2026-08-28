@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+// Spazio minimo (px) perche' un'etichetta stia dentro la propria meta'.
+const LARGHEZZA_ETICHETTA = 120
+
 /** Confronto originale/risultato con maniglia trascinabile. */
 export default function CompareSlider({ before, after, checkerboard = true }) {
   const containerRef = useRef(null)
@@ -46,6 +49,14 @@ export default function CompareSlider({ before, after, checkerboard = true }) {
     }
   }, [updateFromClientX])
 
+  // Ogni etichetta sparisce quando la sua meta' si stringe troppo per contenerla:
+  // altrimenti "Originale" resterebbe scritto sopra il risultato senza sfondo.
+  const sinistraPx = (width * position) / 100
+  const destraPx = width - sinistraPx
+  const etichetta = (spazio) => ({
+    opacity: width && spazio < LARGHEZZA_ETICHETTA ? 0 : 1,
+  })
+
   return (
     <div
       className={`compare ${checkerboard ? 'compare--checker' : ''}`}
@@ -84,8 +95,12 @@ export default function CompareSlider({ before, after, checkerboard = true }) {
       >
         <span className="compare__grip" aria-hidden="true">↔</span>
       </div>
-      <span className="compare__label compare__label--left">Originale</span>
-      <span className="compare__label compare__label--right">Senza sfondo</span>
+      <span className="compare__label compare__label--left" style={etichetta(sinistraPx)}>
+        Originale
+      </span>
+      <span className="compare__label compare__label--right" style={etichetta(destraPx)}>
+        Senza sfondo
+      </span>
     </div>
   )
 }
