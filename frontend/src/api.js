@@ -33,11 +33,12 @@ async function messaggioErrore(res) {
   return `Errore ${res.status}`
 }
 
-export async function removeBackground({ file, model, alphaMatting, background, signal }) {
+export async function removeBackground({ file, model, alphaMatting, background, formato, signal }) {
   const form = new FormData()
   form.append('file', file)
   form.append('model', model)
   form.append('alpha_matting', String(alphaMatting))
+  form.append('format', formato)
   if (background) form.append('background', background)
 
   const res = await fetch(`${BASE}/api/remove-background`, {
@@ -54,6 +55,7 @@ export async function removeBackground({ file, model, alphaMatting, background, 
   return {
     url: URL.createObjectURL(blob),
     blob,
+    formato,
     elapsed: Number(res.headers.get('X-Processing-Time')) || null,
     width: Number(res.headers.get('X-Image-Width')) || null,
     height: Number(res.headers.get('X-Image-Height')) || null,

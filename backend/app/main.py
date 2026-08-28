@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 
 from .config import (
     ALLOWED_CONTENT_TYPES,
+    ALLOWED_OUTPUT_FORMATS,
     AVAILABLE_MODELS,
     CORS_ORIGINS,
     DEFAULT_MODEL,
@@ -73,7 +74,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Remove Background API",
     version="1.0.0",
-    description="Carica un'immagine, ottieni un PNG senza sfondo.",
+    description="Carica un'immagine, ottieni il soggetto ritagliato in PNG o WEBP.",
     lifespan=lifespan,
 )
 
@@ -131,10 +132,19 @@ async def remove_background_endpoint(
     model: str = Form(DEFAULT_MODEL),
     alpha_matting: bool = Form(False),
     background: str | None = Form(None),
+    format: str = Form("png"),
 ):
-    """Restituisce l'immagine come PNG con lo sfondo rimosso."""
+    """Restituisce l'immagine con lo sfondo rimosso, in PNG o WEBP."""
     if model not in AVAILABLE_MODELS:
         raise HTTPException(400, f"Modello non supportato: {model}")
+
+    formato = format.lower()
+    if formato not in ALLOWED_OUTPUT_FORMATS:
+        raise HTTPException(
+            400,
+            f"Formato di uscita non supportato: {format}. "
+            f"Ammessi: {', '.join(sorted(ALLOWED_OUTPUT_FORMATS))}",
+        )
 
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
@@ -169,6 +179,7 @@ async def remove_background_endpoint(
                 model,
                 alpha_matting=alpha_matting,
                 background=bg,
+                output_format=formato,
             )
     except HTTPException:
         raise
@@ -187,15 +198,15 @@ async def remove_background_endpoint(
     # Il nome del file non finisce nei log: e' un dato dell'utente (puo' contenere
     # nomi, diagnosi, numeri di contratto) e per il debug bastano peso e tempi.
     logger.info(
-        "immagine %dx%d elaborata con %s in %.2fs (attesa in coda %.2fs)",
-        *size, model, elapsed, waited,
+        "immagine %dx%d elaborata con %s in %.2fs -> %s di %.1f MB (attesa in coda %.2fs)",
+        *size, model, elapsed, formato, len(png) / 1e6, waited,
     )
 
     return Response(
         content=png,
-        media_type="image/png",
+        media_type=ALLOWED_OUTPUT_FORMATS[formato],
         headers={
-            "Content-Disposition": 'inline; filename="no-background.png"',
+            "Content-Disposition": f'inline; filename="no-background.{formato}"',
             "X-Processing-Time": f"{elapsed:.2f}",
             "X-Image-Width": str(size[0]),
             "X-Image-Height": str(size[1]),

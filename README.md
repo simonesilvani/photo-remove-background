@@ -2,7 +2,7 @@
 
 # 🪄 Remove Background
 
-**Carica un'immagine, ottieni un PNG senza sfondo.**
+**Carica un'immagine, ottieni il soggetto ritagliato.**
 
 API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun servizio esterno, nessuna immagine che lascia la tua macchina.
 
@@ -25,8 +25,10 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | 🎚️ **Confronto prima/dopo** | Slider trascinabile, con scacchiera per leggere la trasparenza |
 | 🧠 **7 modelli selezionabili** | Dal più leggero (`u2netp`, 5 MB) al più accurato (`birefnet-general`) |
 | 🎨 **Sfondo a scelta** | Trasparente oppure un colore pieno, composto lato server |
+| 📦 **PNG o WEBP** | Stesso ritaglio, file fino a 50 volte più leggero |
 | 🪶 **Alpha matting** | Bordi morbidi dove servono davvero: capelli, pelo, frange |
 | ⚡ **Full-res senza attese** | Inferenza su copia ridotta, maschera riportata sull'originale |
+| 🏎️ **Acceleratore automatico** | CoreML o CUDA se disponibili, altrimenti CPU |
 | 📐 **EXIF-aware** | Le foto da smartphone non escono ruotate |
 | 🛡️ **RAM con un tetto** | Le inferenze simultanee sono limitate: il consumo non esplode sotto carico |
 | 🔒 **100% offline** | `onnxruntime` in locale: nessun upload verso terze parti |
@@ -141,6 +143,23 @@ Il modello si sceglie a ogni richiesta: nessun riavvio, i pesi restano in cache.
 stessa immagine passa da **0,53 s** a **1,07 s**. Serve su capelli, pelo e tessuti sottili;
 su soggetti dai bordi netti non cambia il risultato.
 
+**L'acceleratore hardware viene usato da solo se c'è.** All'avvio il server cerca CoreML
+(Mac Apple Silicon) o CUDA (GPU NVIDIA) e ricade sulla CPU se non li trova, senza
+configurazione. Su un M3 Pro la stessa foto da 12 MP passa da **1,03 s a 0,84 s**, e
+l'inferenza da sola quasi raddoppia di velocità (0,40 s → 0,21 s). Il provider scelto
+compare nei log all'avvio.
+
+**Il formato di uscita pesa più del modello.** Sulla stessa foto da 12 MP:
+
+| Formato | Tempo totale | File prodotto |
+| :-- | --: | --: |
+| PNG (default, senza perdita) | 1,40 s | **18,8 MB** |
+| WEBP | 1,03 s | **0,36 MB** |
+
+Il canale alpha resta **identico bit per bit** — la compressione agisce solo sui colori — e
+sui pixel visibili la differenza media è di 0,33 su 255, cioè invisibile. Il PNG resta il
+default perché è senza perdita e lo apre qualunque programma.
+
 > [!TIP]
 > Cerchi il modello più leggero da distribuire? `silueta` pesa **¼** di `u2net` con tempi
 > praticamente identici. Cerchi il più veloce da scaricare? `u2netp`: 5 MB.
@@ -199,6 +218,7 @@ Corpo `multipart/form-data`:
 | `model` | string | `u2net` | uno degli id restituiti da `/api/models` |
 | `alpha_matting` | bool | `false` | rifinisce i bordi semi-trasparenti |
 | `background` | string | — | colore esadecimale (`#fff`, `#ffffff`, `#ffffffaa`); se assente lo sfondo resta trasparente |
+| `format` | string | `png` | `png` (senza perdita) o `webp` (molto più leggero) |
 
 **Risposta** `200 image/png`, più gli header `X-Processing-Time` (secondi),
 `X-Image-Width` e `X-Image-Height`.
@@ -236,7 +256,7 @@ print(r.headers["X-Processing-Time"], "secondi")
 
 | Codice | Quando |
 | :-- | :-- |
-| `400` | file vuoto, immagine illeggibile, modello o colore non valido |
+| `400` | file vuoto, immagine illeggibile, modello, colore o formato non valido |
 | `413` | file oltre il limite di upload, oppure immagine oltre `RB_MAX_IMAGE_PIXELS` |
 | `415` | content-type non supportato |
 | `422` | richiesta malformata: campo mancante o non interpretabile |
@@ -259,6 +279,8 @@ Il backend si configura con variabili d'ambiente, nessun file di config da modif
 | `RB_DEFAULT_MODEL` | `u2net` | modello usato quando il client non ne specifica uno |
 | `RB_MAX_UPLOAD_BYTES` | `15728640` | dimensione massima dell'upload (15 MB) |
 | `RB_MAX_IMAGE_PIXELS` | `50000000` | tetto ai pixel decodificati (50 Mpixel) |
+| `RB_WEBP_QUALITY` | `92` | qualità del WEBP (la trasparenza resta senza perdita) |
+| `RB_ACCELERATION` | `1` | usa CoreML o CUDA se presenti; `0` forza la CPU |
 | `RB_MAX_INFERENCE_SIDE` | `2000` | lato lungo massimo dato in pasto al modello |
 | `RB_MAX_CONCURRENCY` | `2` | inferenze simultanee: è il tetto al consumo di RAM |
 | `RB_QUEUE_TIMEOUT` | `60` | secondi di attesa in coda prima di rispondere `503` |

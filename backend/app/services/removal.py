@@ -2,14 +2,23 @@
 from __future__ import annotations
 
 import io
+import logging
 from functools import lru_cache
 from typing import Optional, Tuple
 
+import onnxruntime as ort
 from PIL import Image, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 from rembg import new_session, remove
 
-from ..config import MAX_IMAGE_PIXELS, MAX_INFERENCE_SIDE
+from ..config import (
+    MAX_IMAGE_PIXELS,
+    MAX_INFERENCE_SIDE,
+    USE_ACCELERATION,
+    WEBP_QUALITY,
+)
+
+logger = logging.getLogger("removebg")
 
 
 class ImageError(ValueError):
@@ -20,13 +29,25 @@ class ImageTooLargeError(ImageError):
     """L'immagine decodificata supera il tetto di pixel ammesso."""
 
 
+def _providers() -> list[str]:
+    """Acceleratore disponibile, con ricaduta sempre sulla CPU."""
+    if USE_ACCELERATION:
+        disponibili = ort.get_available_providers()
+        for acceleratore in ("CUDAExecutionProvider", "CoreMLExecutionProvider"):
+            if acceleratore in disponibili:
+                return [acceleratore, "CPUExecutionProvider"]
+    return ["CPUExecutionProvider"]
+
+
 @lru_cache(maxsize=4)
 def get_session(model: str):
     """Sessione onnxruntime per un modello, creata una sola volta.
 
     Il primo utilizzo di un modello ne scarica i pesi in ~/.rembg/models.
     """
-    return new_session(model)
+    providers = _providers()
+    logger.info("Modello %s su %s", model, providers[0])
+    return new_session(model, providers=providers)
 
 
 def warmup(model: str) -> None:
@@ -53,8 +74,12 @@ def load_image(data: bytes) -> Image.Image:
         ) from exc
     except (UnidentifiedImageError, OSError) as exc:
         raise ImageError("File non riconosciuto come immagine valida") from exc
-    # Applica l'orientamento EXIF, altrimenti le foto da smartphone escono ruotate.
-    return ImageOps.exif_transpose(img).convert("RGB")
+
+    # Orientamento EXIF (altrimenti le foto da smartphone escono ruotate) applicato
+    # sul posto, e conversione solo se necessaria: a 12 MP ogni copia inutile
+    # dell'immagine costa ~37 MB.
+    ImageOps.exif_transpose(img, in_place=True)
+    return img if img.mode == "RGB" else img.convert("RGB")
 
 
 def hex_to_rgba(value: str) -> Tuple[int, int, int, int]:
@@ -90,8 +115,9 @@ def remove_background(
     alpha_matting: bool = False,
     post_process: bool = True,
     background: Optional[str] = None,
+    output_format: str = "png",
 ) -> Tuple[bytes, Tuple[int, int]]:
-    """Restituisce (PNG con sfondo rimosso, dimensioni originali).
+    """Restituisce (immagine senza sfondo, dimensioni originali).
 
     `background` e' un colore esadecimale opzionale: se assente lo sfondo
     resta trasparente, altrimenti il soggetto viene composto su quel colore.
@@ -115,8 +141,10 @@ def remove_background(
     if alpha.size != original.size:
         alpha = alpha.resize(original.size, Image.LANCZOS)
 
-    result = original.convert("RGBA")
-    result.putalpha(alpha)
+    # putalpha su un'immagine RGB la converte in RGBA sul posto: evita di
+    # duplicare l'originale (49 MB a 12 MP).
+    original.putalpha(alpha)
+    result = original
 
     if background:
         canvas = Image.new("RGBA", result.size, hex_to_rgba(background))
@@ -124,7 +152,12 @@ def remove_background(
         result = canvas
 
     buffer = io.BytesIO()
-    # Niente optimize=True: su una foto da 12 MP costava 5,0 s contro gli 0,9 s
-    # della compressione di default, per il 6% di byte risparmiati.
-    result.save(buffer, format="PNG")
+    if output_format == "webp":
+        # alpha_quality=100 tiene la trasparenza senza perdita: i bordi del
+        # ritaglio restano netti, la compressione agisce solo sui colori.
+        result.save(buffer, format="WEBP", quality=WEBP_QUALITY, alpha_quality=100)
+    else:
+        # Niente optimize=True: su una foto da 12 MP costava 5,0 s contro gli 0,9 s
+        # della compressione di default, per il 6% di byte risparmiati.
+        result.save(buffer, format="PNG")
     return buffer.getvalue(), original.size

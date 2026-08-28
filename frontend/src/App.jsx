@@ -10,6 +10,7 @@ export default function App() {
   const [models, setModels] = useState([])
   const [model, setModel] = useState('u2net')
   const [alphaMatting, setAlphaMatting] = useState(false)
+  const [formato, setFormato] = useState('png')
   const [bgPreset, setBgPreset] = useState('transparent')
   const [customColor, setCustomColor] = useState('#4f46e5')
 
@@ -100,6 +101,7 @@ export default function App() {
         model,
         alphaMatting,
         background: backgroundValue(),
+        formato,
         signal: controller.signal,
       })
       setResult((prev) => {
@@ -127,13 +129,19 @@ export default function App() {
     setError(null)
   }
 
-  const downloadName = file ? `${file.name.replace(/\.[^.]+$/, '')}-no-bg.png` : 'no-bg.png'
+  // Il nome e l'etichetta seguono il formato con cui il risultato e' stato
+  // prodotto, non quello selezionato ora: cambiando menu senza rielaborare
+  // si scaricherebbe un file con l'estensione sbagliata.
+  const formatoRisultato = result?.formato ?? formato
+  const downloadName = file
+    ? `${file.name.replace(/\.[^.]+$/, '')}-no-bg.${formatoRisultato}`
+    : `no-bg.${formatoRisultato}`
 
   return (
     <div className="app">
       <header className="header">
         <h1>Remove Background</h1>
-        <p>Carica un'immagine e ottieni un PNG con lo sfondo rimosso.</p>
+        <p>Carica un'immagine e ottieni il soggetto ritagliato, in PNG o WEBP.</p>
       </header>
 
       <main className="layout">
@@ -176,6 +184,8 @@ export default function App() {
             models={models}
             model={model}
             onModelChange={setModel}
+            formato={formato}
+            onFormatoChange={setFormato}
             alphaMatting={alphaMatting}
             onAlphaMattingChange={setAlphaMatting}
             bgPreset={bgPreset}
@@ -197,7 +207,7 @@ export default function App() {
             </button>
             {result && (
               <a className="btn btn--ghost" href={result.url} download={downloadName}>
-                Scarica PNG
+                Scarica {formatoRisultato.toUpperCase()}
               </a>
             )}
             {file && (

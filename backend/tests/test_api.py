@@ -36,11 +36,21 @@ def test_immagine_valida(client, immagine, monkeypatch):
     assert float(r.headers["X-Processing-Time"]) >= 0
 
 
+@pytest.mark.parametrize("formato, tipo", [("png", "image/png"), ("webp", "image/webp")])
+def test_formato_di_uscita(client, immagine, monkeypatch, formato, tipo):
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"finto", (60, 40)))
+    r = upload(client, immagine(), format=formato)
+    assert r.status_code == 200
+    assert r.headers["content-type"] == tipo
+    assert f"no-background.{formato}" in r.headers["content-disposition"]
+
+
 @pytest.mark.parametrize(
     "campi, atteso, frammento",
     [
         ({"model": "inesistente"}, 400, "Modello non supportato"),
         ({"background": "non-un-colore"}, 400, "Colore non valido"),
+        ({"format": "gif"}, 400, "Formato di uscita non supportato"),
     ],
 )
 def test_parametri_non_validi(client, immagine, campi, atteso, frammento):

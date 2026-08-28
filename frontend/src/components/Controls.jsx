@@ -5,10 +5,17 @@ const PRESETS = [
   { id: 'custom', label: 'Personalizzato', value: null, swatch: null },
 ]
 
+const FORMATI = [
+  { id: 'png', label: 'PNG', hint: 'senza perdita, compatibile ovunque' },
+  { id: 'webp', label: 'WEBP', hint: 'stessa resa, file fino a 50 volte piu\u2019 leggero' },
+]
+
 export default function Controls({
   models,
   model,
   onModelChange,
+  formato,
+  onFormatoChange,
   alphaMatting,
   onAlphaMattingChange,
   bgPreset,
@@ -35,6 +42,18 @@ export default function Controls({
           ))}
         </select>
         {current && <span className="field__hint">{current.description}</span>}
+      </label>
+
+      <label className="field">
+        <span className="field__label">Formato</span>
+        <select value={formato} disabled={disabled} onChange={(e) => onFormatoChange(e.target.value)}>
+          {FORMATI.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+        <span className="field__hint">{FORMATI.find((f) => f.id === formato)?.hint}</span>
       </label>
 
       <div className="field">
