@@ -100,7 +100,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
     # stato letto da FastAPI: qui si accede alla copia in cache).
     try:
         ricevuti = [
-            f"{k}=<file {v.filename!r} {v.size or 0}B>" if hasattr(v, "filename") else f"{k}={v!r}"
+            f"{k}=<file {v.size or 0}B>" if hasattr(v, "filename") else f"{k}={v!r}"
             for k, v in (await request.form()).multi_items()
         ]
     except Exception:  # la diagnostica non deve mai far fallire la risposta
@@ -177,14 +177,18 @@ async def remove_background_endpoint(
     except ImageError as exc:
         raise HTTPException(400, str(exc)) from exc
     except Exception:
-        logger.exception("Errore durante l'elaborazione di %s", file.filename)
+        logger.exception(
+            "Errore su un'immagine %s di %d byte", file.content_type, len(data)
+        )
         raise HTTPException(500, "Errore durante l'elaborazione dell'immagine")
 
     elapsed = time.perf_counter() - started
     waited = started - queued
+    # Il nome del file non finisce nei log: e' un dato dell'utente (puo' contenere
+    # nomi, diagnosi, numeri di contratto) e per il debug bastano peso e tempi.
     logger.info(
-        "%s (%dx%d) elaborata con %s in %.2fs (attesa in coda %.2fs)",
-        file.filename, *size, model, elapsed, waited,
+        "immagine %dx%d elaborata con %s in %.2fs (attesa in coda %.2fs)",
+        *size, model, elapsed, waited,
     )
 
     return Response(
