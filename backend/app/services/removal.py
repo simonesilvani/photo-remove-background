@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import logging
+import pathlib
 from functools import lru_cache
 from typing import Optional, Tuple
 
@@ -10,6 +11,7 @@ import onnxruntime as ort
 from PIL import Image, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 from rembg import new_session, remove
+from rembg.sessions import sessions_class
 
 from ..config import (
     MAX_IMAGE_PIXELS,
@@ -48,6 +50,22 @@ def get_session(model: str):
     providers = _providers()
     logger.info("Modello %s su %s", model, providers[0])
     return new_session(model, providers=providers)
+
+
+_CLASSI_SESSIONE = {c.name(): c for c in sessions_class}
+
+
+def modello_scaricato(model: str) -> bool:
+    """True se i pesi sono gia' sul disco.
+
+    Serve a dire all'utente, prima che prema il pulsante, che quel modello
+    costera' un download di centinaia di MB.
+    """
+    classe = _CLASSI_SESSIONE.get(model)
+    if classe is None:
+        return False
+    cartella = pathlib.Path(classe.model_dir())
+    return cartella.is_dir() and any(cartella.glob("*.onnx"))
 
 
 def warmup(model: str) -> None:

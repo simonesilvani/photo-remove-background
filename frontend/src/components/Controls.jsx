@@ -38,10 +38,21 @@ export default function Controls({
           {models.map((m) => (
             <option key={m.id} value={m.id}>
               {m.id}
+              {m.downloaded === false ? ` (${m.size_mb} MB da scaricare)` : ''}
             </option>
           ))}
         </select>
-        {current && <span className="field__hint">{current.description}</span>}
+        {current && (
+          <span className="field__hint">
+            {current.description}
+            {current.downloaded === false && (
+              <>
+                {' '}
+                <b>· primo utilizzo: {current.size_mb} MB da scaricare</b>
+              </>
+            )}
+          </span>
+        )}
       </label>
 
       <label className="field">

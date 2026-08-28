@@ -126,6 +126,8 @@ sequenceDiagram
 ## 🧠 Modelli e prestazioni
 
 Il modello si sceglie a ogni richiesta: nessun riavvio, i pesi restano in cache.
+`GET /api/models` dice quali sono già sul disco e quanto pesano quelli che mancano,
+così l'interfaccia avvisa prima di far partire un download da centinaia di MB.
 
 | Modello | Peso | Tempo | Velocità relativa | Ideale per |
 | :-- | --: | --: | :-- | :-- |

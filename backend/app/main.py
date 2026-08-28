@@ -18,6 +18,7 @@ from .config import (
     CORS_ORIGINS,
     DEFAULT_MODEL,
     MAX_CONCURRENCY,
+    MAX_IMAGE_PIXELS,
     MAX_UPLOAD_BYTES,
     QUEUE_TIMEOUT_SECONDS,
 )
@@ -25,6 +26,7 @@ from .services.removal import (
     ImageError,
     ImageTooLargeError,
     hex_to_rgba,
+    modello_scaricato,
     remove_background,
     warmup,
 )
@@ -115,14 +117,36 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "default_model": DEFAULT_MODEL}
+    """Stato del servizio e limiti effettivi.
+
+    Il client li legge da qui invece di ripeterli nel proprio codice: cambiando
+    una variabile d'ambiente lato server, l'interfaccia si adegua da sola.
+    """
+    return {
+        "status": "ok",
+        "default_model": DEFAULT_MODEL,
+        "limits": {
+            "max_upload_bytes": MAX_UPLOAD_BYTES,
+            "max_image_pixels": MAX_IMAGE_PIXELS,
+            "content_types": sorted(ALLOWED_CONTENT_TYPES),
+            "formats": sorted(ALLOWED_OUTPUT_FORMATS),
+        },
+    }
 
 
 @app.get("/api/models")
 async def models():
     return {
         "default": DEFAULT_MODEL,
-        "models": [{"id": k, "description": v} for k, v in AVAILABLE_MODELS.items()],
+        "models": [
+            {
+                "id": nome,
+                "description": descrizione,
+                "size_mb": peso,
+                "downloaded": modello_scaricato(nome),
+            }
+            for nome, (descrizione, peso) in AVAILABLE_MODELS.items()
+        ],
     }
 
 

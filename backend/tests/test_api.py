@@ -22,6 +22,15 @@ def test_models_elenca_il_default(client):
     assert all(m["description"] for m in corpo["models"])
 
 
+def test_models_dice_peso_e_stato_del_download(client):
+    """Senza questi campi l'utente non sa che sceglierlo costa un download."""
+    modelli = client.get("/api/models").json()["models"]
+    assert all(isinstance(m["downloaded"], bool) for m in modelli)
+    assert all(m["size_mb"] > 0 for m in modelli)
+    pesante = next(m for m in modelli if m["id"] == "birefnet-general")
+    assert pesante["size_mb"] > 900
+
+
 def test_immagine_valida(client, immagine, monkeypatch):
     """Percorso felice, con l'inferenza sostituita da uno stub."""
     monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"\x89PNG-finto", (60, 40)))

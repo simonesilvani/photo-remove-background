@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import Dropzone from './components/Dropzone.jsx'
 import CompareSlider from './components/CompareSlider.jsx'
 import Controls, { PRESETS } from './components/Controls.jsx'
-import { fetchModels, removeBackground } from './api.js'
+import { fetchLimits, fetchModels, removeBackground } from './api.js'
 
-const MAX_BYTES = 15 * 1024 * 1024
+// Valore di ripiego: quello vero arriva da /api/health all'avvio.
+const MAX_BYTES_DEFAULT = 15 * 1024 * 1024
 
 export default function App() {
   const [models, setModels] = useState([])
   const [model, setModel] = useState('u2net')
   const [alphaMatting, setAlphaMatting] = useState(false)
   const [formato, setFormato] = useState('png')
+  const [maxBytes, setMaxBytes] = useState(MAX_BYTES_DEFAULT)
   const [bgPreset, setBgPreset] = useState('transparent')
   const [customColor, setCustomColor] = useState('#4f46e5')
 
@@ -29,6 +31,9 @@ export default function App() {
         setModel(data.default)
       })
       .catch(() => setError('Backend non raggiungibile: avvia il server su localhost:8000'))
+    fetchLimits()
+      .then((l) => l?.max_upload_bytes && setMaxBytes(l.max_upload_bytes))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -48,8 +53,8 @@ export default function App() {
 
   async function selectFile(next) {
     if (!next) return
-    if (next.size > MAX_BYTES) {
-      setError('Immagine troppo grande: il limite e’ 15 MB')
+    if (next.size > maxBytes) {
+      setError(`Immagine troppo grande: il limite e’ ${Math.round(maxBytes / 1024 / 1024)} MB`)
       return
     }
 
@@ -108,6 +113,8 @@ export default function App() {
         if (prev?.url) URL.revokeObjectURL(prev.url)
         return next
       })
+      // Dopo il primo uso i pesi sono in cache: aggiorna gli avvisi di download.
+      if (modelloDaScaricare) fetchModels().then((d) => setModels(d.models)).catch(() => {})
     } catch (err) {
       if (err.name !== 'AbortError') setError(err.message)
     } finally {
@@ -133,6 +140,9 @@ export default function App() {
   // prodotto, non quello selezionato ora: cambiando menu senza rielaborare
   // si scaricherebbe un file con l'estensione sbagliata.
   const formatoRisultato = result?.formato ?? formato
+  // Il modello scelto non e' ancora sul disco: la prima richiesta lo scarichera'.
+  const modelloDaScaricare = models.find((m) => m.id === model && m.downloaded === false)
+
   const downloadName = file
     ? `${file.name.replace(/\.[^.]+$/, '')}-no-bg.${formatoRisultato}`
     : `no-bg.${formatoRisultato}`
@@ -162,7 +172,11 @@ export default function App() {
                   {loading && (
                     <div className="preview__loading">
                       <span className="spinner" aria-hidden="true" />
-                      <span>Elaborazione in corso…</span>
+                      <span>
+                        {modelloDaScaricare
+                          ? `Scaricamento del modello (${modelloDaScaricare.size_mb} MB), solo la prima volta…`
+                          : 'Elaborazione in corso…'}
+                      </span>
                     </div>
                   )}
                 </div>

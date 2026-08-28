@@ -3,14 +3,15 @@ import os
 
 DEFAULT_MODEL = os.getenv("RB_DEFAULT_MODEL", "u2net")
 
+# id -> (descrizione, peso in MB da scaricare al primo utilizzo)
 AVAILABLE_MODELS = {
-    "u2net": "Generico, buon compromesso qualita'/velocita'",
-    "u2netp": "Versione leggera di u2net, piu' veloce",
-    "u2net_human_seg": "Ottimizzato per persone",
-    "isnet-general-use": "Generico, bordi piu' precisi",
-    "isnet-anime": "Illustrazioni e anime",
-    "silueta": "u2net compresso (~43MB)",
-    "birefnet-general": "Qualita' massima, piu' lento",
+    "u2net": ("Generico, buon compromesso qualita'/velocita'", 176),
+    "u2netp": ("Versione leggera di u2net, piu' veloce", 5),
+    "u2net_human_seg": ("Ottimizzato per persone", 176),
+    "isnet-general-use": ("Generico, bordi piu' precisi", 179),
+    "isnet-anime": ("Illustrazioni e anime", 176),
+    "silueta": ("u2net compresso, stessa resa", 44),
+    "birefnet-general": ("Qualita' massima, molto piu' lento", 973),
 }
 
 MAX_UPLOAD_BYTES = int(os.getenv("RB_MAX_UPLOAD_BYTES", 15 * 1024 * 1024))
