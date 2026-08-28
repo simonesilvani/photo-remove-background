@@ -54,6 +54,7 @@ export default function App() {
   const TIPI = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
     webp: 'image/webp', bmp: 'image/bmp', tif: 'image/tiff', tiff: 'image/tiff',
+    heic: 'image/heic', heif: 'image/heif', avif: 'image/avif',
   }
 
   async function selectFile(next) {
@@ -126,6 +127,11 @@ export default function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function annulla() {
+    abortRef.current?.abort()
+    setLoading(false)
   }
 
   function reset() {
@@ -218,13 +224,15 @@ export default function App() {
           {error && <p className="error" role="alert">{error}</p>}
 
           <div className="actions">
-            <button
-              className="btn btn--primary"
-              onClick={handleSubmit}
-              disabled={!file || loading}
-            >
-              {loading ? 'Elaborazione…' : result ? 'Rielabora' : 'Rimuovi sfondo'}
-            </button>
+            {loading ? (
+              <button className="btn btn--danger" onClick={annulla}>
+                Annulla
+              </button>
+            ) : (
+              <button className="btn btn--primary" onClick={handleSubmit} disabled={!file}>
+                {result ? 'Rielabora' : 'Rimuovi sfondo'}
+              </button>
+            )}
             {result && (
               <a className="btn btn--ghost" href={result.url} download={downloadName}>
                 Scarica {formatoRisultato.toUpperCase()}
