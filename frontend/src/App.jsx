@@ -13,6 +13,7 @@ export default function App() {
   const [alphaMatting, setAlphaMatting] = useState(false)
   const [formato, setFormato] = useState('png')
   const [maxBytes, setMaxBytes] = useState(MAX_BYTES_DEFAULT)
+  const maxBytesRef = useRef(MAX_BYTES_DEFAULT)
   const [bgPreset, setBgPreset] = useState('transparent')
   const [customColor, setCustomColor] = useState('#4f46e5')
 
@@ -32,7 +33,11 @@ export default function App() {
       })
       .catch(() => setError('Backend non raggiungibile: avvia il server su localhost:8000'))
     fetchLimits()
-      .then((l) => l?.max_upload_bytes && setMaxBytes(l.max_upload_bytes))
+      .then((l) => {
+        if (!l?.max_upload_bytes) return
+        setMaxBytes(l.max_upload_bytes)
+        maxBytesRef.current = l.max_upload_bytes // il gestore di ⌘V legge da qui
+      })
       .catch(() => {})
   }, [])
 
@@ -53,8 +58,9 @@ export default function App() {
 
   async function selectFile(next) {
     if (!next) return
-    if (next.size > maxBytes) {
-      setError(`Immagine troppo grande: il limite e’ ${Math.round(maxBytes / 1024 / 1024)} MB`)
+    const limite = maxBytesRef.current
+    if (next.size > limite) {
+      setError(`Immagine troppo grande: il limite e’ ${Math.round(limite / 1024 / 1024)} MB`)
       return
     }
 

@@ -12,7 +12,18 @@ from tests.conftest import upload
 def test_health(client):
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "default_model": config.DEFAULT_MODEL}
+    corpo = r.json()
+    assert corpo["status"] == "ok"
+    assert corpo["default_model"] == config.DEFAULT_MODEL
+
+
+def test_health_pubblica_i_limiti(client):
+    """Il client li legge da qui invece di ripeterli nel proprio codice."""
+    limiti = client.get("/api/health").json()["limits"]
+    assert limiti["max_upload_bytes"] == config.MAX_UPLOAD_BYTES
+    assert limiti["max_image_pixels"] == config.MAX_IMAGE_PIXELS
+    assert "image/jpeg" in limiti["content_types"]
+    assert set(limiti["formats"]) == set(config.ALLOWED_OUTPUT_FORMATS)
 
 
 def test_models_elenca_il_default(client):

@@ -1,6 +1,12 @@
 // In sviluppo le richieste passano dal proxy Vite; in produzione si imposta VITE_API_URL.
 const BASE = import.meta.env.VITE_API_URL ?? ''
 
+export async function fetchLimits() {
+  const res = await fetch(`${BASE}/api/health`)
+  if (!res.ok) throw new Error('Backend non raggiungibile')
+  return (await res.json()).limits
+}
+
 export async function fetchModels() {
   const res = await fetch(`${BASE}/api/models`)
   if (!res.ok) throw new Error('Impossibile caricare la lista dei modelli')
