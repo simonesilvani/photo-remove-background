@@ -22,6 +22,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 |  |  |
 | :-- | :-- |
 | 🖱️ **Tre modi per caricare** | Trascina, clicca o incolla con <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd> |
+| 📋 **Copia negli appunti** | Il risultato torna negli appunti, senza passare dal disco |
 | 🎚️ **Confronto prima/dopo** | Slider trascinabile, con scacchiera per leggere la trasparenza |
 | 🧠 **7 modelli selezionabili** | Dal più leggero (`u2netp`, 5 MB) al più accurato (`birefnet-general`) |
 | 🎨 **Sfondo a scelta** | Trasparente oppure un colore pieno, composto lato server |

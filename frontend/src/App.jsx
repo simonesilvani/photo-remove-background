@@ -3,6 +3,7 @@ import Dropzone from './components/Dropzone.jsx'
 import CompareSlider from './components/CompareSlider.jsx'
 import Controls, { PRESETS } from './components/Controls.jsx'
 import { fetchLimits, fetchModels, removeBackground } from './api.js'
+import { copiaImmagine, supportaCopia } from './clipboard.js'
 
 // Valore di ripiego: quello vero arriva da /api/health all'avvio.
 const MAX_BYTES_DEFAULT = 15 * 1024 * 1024
@@ -14,6 +15,7 @@ export default function App() {
   const [formato, setFormato] = useState('png')
   const [trim, setTrim] = useState(false)
   const [maxBytes, setMaxBytes] = useState(MAX_BYTES_DEFAULT)
+  const [copiato, setCopiato] = useState(false)
   const maxBytesRef = useRef(MAX_BYTES_DEFAULT)
   const [bgPreset, setBgPreset] = useState('transparent')
   const [customColor, setCustomColor] = useState('#4f46e5')
@@ -136,6 +138,16 @@ export default function App() {
     setLoading(false)
   }
 
+  async function copia() {
+    try {
+      await copiaImmagine(result.blob)
+      setCopiato(true)
+      setTimeout(() => setCopiato(false), 2000)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function reset() {
     abortRef.current?.abort()
     setFile(null)
@@ -241,6 +253,11 @@ export default function App() {
               <a className="btn btn--ghost" href={result.url} download={downloadName}>
                 Scarica {formatoRisultato.toUpperCase()}
               </a>
+            )}
+            {result && supportaCopia() && (
+              <button className="btn btn--ghost" onClick={copia} disabled={loading}>
+                {copiato ? 'Copiato ✓' : 'Copia negli appunti'}
+              </button>
             )}
             {file && (
               <button className="btn btn--ghost" onClick={reset} disabled={loading}>
