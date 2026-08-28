@@ -39,7 +39,19 @@ async function messaggioErrore(res) {
   return `Errore ${res.status}`
 }
 
-export async function removeBackground({ file, model, alphaMatting, background, formato, signal }) {
+// Oltre questo tempo la richiesta viene abbandonata: senza, se il backend muore
+// a meta' elaborazione la rotella gira per sempre.
+const TIMEOUT_MS = 180_000
+
+export async function removeBackground({
+  file,
+  model,
+  alphaMatting,
+  background,
+  formato,
+  signal,
+  timeoutMs = TIMEOUT_MS,
+}) {
   const form = new FormData()
   form.append('file', file)
   form.append('model', model)
@@ -47,11 +59,24 @@ export async function removeBackground({ file, model, alphaMatting, background, 
   form.append('format', formato)
   if (background) form.append('background', background)
 
-  const res = await fetch(`${BASE}/api/remove-background`, {
-    method: 'POST',
-    body: form,
-    signal,
-  })
+  // Il segnale del chiamante (annullamento manuale) e quello del timeout
+  // vengono uniti: scatta il primo dei due.
+  const scadenza = AbortSignal.timeout(timeoutMs)
+  const segnale = signal ? AbortSignal.any([signal, scadenza]) : scadenza
+
+  let res
+  try {
+    res = await fetch(`${BASE}/api/remove-background`, {
+      method: 'POST',
+      body: form,
+      signal: segnale,
+    })
+  } catch (err) {
+    if (scadenza.aborted) {
+      throw new Error('Il server non ha risposto in tempo. Riprova.')
+    }
+    throw err
+  }
 
   if (!res.ok) {
     throw new Error(await messaggioErrore(res))
