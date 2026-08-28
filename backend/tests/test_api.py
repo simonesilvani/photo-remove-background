@@ -1,0 +1,110 @@
+"""Validazione degli input e forma delle risposte dell'API."""
+import io
+
+import pytest
+from PIL import Image
+
+from app import config, main
+from app.services import removal
+from tests.conftest import upload
+
+
+def test_health(client):
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok", "default_model": config.DEFAULT_MODEL}
+
+
+def test_models_elenca_il_default(client):
+    corpo = client.get("/api/models").json()
+    ids = [m["id"] for m in corpo["models"]]
+    assert corpo["default"] in ids
+    assert all(m["description"] for m in corpo["models"])
+
+
+def test_immagine_valida(client, immagine, monkeypatch):
+    """Percorso felice, con l'inferenza sostituita da uno stub."""
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"\x89PNG-finto", (60, 40)))
+
+    r = upload(client, immagine())
+
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.content == b"\x89PNG-finto"
+    assert r.headers["X-Image-Width"] == "60"
+    assert r.headers["X-Image-Height"] == "40"
+    assert float(r.headers["X-Processing-Time"]) >= 0
+
+
+@pytest.mark.parametrize(
+    "campi, atteso, frammento",
+    [
+        ({"model": "inesistente"}, 400, "Modello non supportato"),
+        ({"background": "non-un-colore"}, 400, "Colore non valido"),
+    ],
+)
+def test_parametri_non_validi(client, immagine, campi, atteso, frammento):
+    r = upload(client, immagine(), **campi)
+    assert r.status_code == atteso
+    assert frammento in r.json()["detail"]
+
+
+def test_tipo_non_supportato(client):
+    r = upload(client, b"non sono un'immagine", tipo="text/plain", nome="note.txt")
+    assert r.status_code == 415
+    assert "text/plain" in r.json()["detail"]
+
+
+def test_file_vuoto(client):
+    assert upload(client, b"").status_code == 400
+
+
+def test_file_non_riconosciuto(client):
+    r = upload(client, b"\xff\xd8\xff" + b"spazzatura" * 10)
+    assert r.status_code == 400
+    assert "non riconosciuto" in r.json()["detail"]
+
+
+def test_upload_oltre_il_limite(client, immagine, monkeypatch):
+    monkeypatch.setattr(main, "MAX_UPLOAD_BYTES", 100)
+    r = upload(client, immagine((400, 400)))
+    assert r.status_code == 413
+    assert "troppo grande" in r.json()["detail"]
+
+
+def test_troppi_pixel(client, immagine, monkeypatch):
+    """Il tetto e' sui pixel decodificati, non sui byte caricati."""
+    monkeypatch.setattr(removal, "MAX_IMAGE_PIXELS", 1_000)
+    r = upload(client, immagine((100, 100)))  # 10.000 pixel in pochi KB
+    assert r.status_code == 413
+    assert "Mpixel" in r.json()["detail"]
+
+
+def test_bomba_di_decompressione(client, monkeypatch):
+    """Un PNG minuscolo che dichiara dimensioni assurde non deve dare 500."""
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 1_000)
+    buffer = io.BytesIO()
+    Image.new("RGB", (2000, 2000)).save(buffer, format="PNG")
+    r = upload(client, buffer.getvalue(), tipo="image/png", nome="bomba.png")
+    assert r.status_code == 413
+
+
+def test_il_detail_e_sempre_una_stringa(client, immagine):
+    """Regressione: FastAPI restituirebbe una lista di oggetti sui 422, e
+    l'interfaccia mostrerebbe "[object Object]" invece del messaggio."""
+    senza_file = client.post("/api/remove-background", data={"model": "u2net"})
+    assert senza_file.status_code == 422
+    assert isinstance(senza_file.json()["detail"], str)
+
+    booleano_sbagliato = upload(client, immagine(), alpha_matting="forse")
+    assert booleano_sbagliato.status_code == 422
+    assert "alpha_matting" in booleano_sbagliato.json()["detail"]
+
+
+def test_i_log_non_contengono_il_nome_del_file(client, immagine, monkeypatch, caplog):
+    """Il nome e' un dato dell'utente: non deve finire nei log."""
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"png", (60, 40)))
+    with caplog.at_level("INFO"):
+        upload(client, immagine(), nome="referto-mario-rossi.jpg")
+    assert "referto-mario-rossi" not in caplog.text
+    assert "60x40" in caplog.text
