@@ -157,6 +157,7 @@ async def remove_background_endpoint(
     alpha_matting: bool = Form(False),
     background: str | None = Form(None),
     format: str = Form("png"),
+    trim: bool = Form(False),
 ):
     """Restituisce l'immagine con lo sfondo rimosso, in PNG o WEBP."""
     if model not in AVAILABLE_MODELS:
@@ -213,6 +214,7 @@ async def remove_background_endpoint(
                 alpha_matting=alpha_matting,
                 background=bg,
                 output_format=formato,
+                trim=trim,
             )
     except HTTPException:
         raise

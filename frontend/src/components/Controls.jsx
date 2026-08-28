@@ -18,6 +18,8 @@ export default function Controls({
   onFormatoChange,
   alphaMatting,
   onAlphaMattingChange,
+  trim,
+  onTrimChange,
   bgPreset,
   onBgPresetChange,
   customColor,
@@ -99,6 +101,19 @@ export default function Controls({
           )}
         </div>
       </div>
+
+      <label className="field field--inline">
+        <input
+          type="checkbox"
+          checked={trim}
+          disabled={disabled}
+          onChange={(e) => onTrimChange(e.target.checked)}
+        />
+        <span>
+          <span className="field__label">Ritaglia ai bordi</span>
+          <span className="field__hint">Elimina i margini trasparenti attorno al soggetto</span>
+        </span>
+      </label>
 
       <label className="field field--inline">
         <input

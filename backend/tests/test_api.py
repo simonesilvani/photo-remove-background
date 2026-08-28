@@ -119,6 +119,32 @@ def test_heic_delle_foto_iphone(client, monkeypatch):
     assert load_image(buffer.getvalue()).size == (80, 60)
 
 
+def test_riquadro_del_soggetto():
+    """Il ritaglio segue il soggetto e ignora gli aloni quasi invisibili."""
+    from app.services.removal import riquadro_soggetto
+
+    vuota = Image.new("L", (100, 100), 0)
+    assert riquadro_soggetto(vuota) is None  # niente soggetto, niente ritaglio
+
+    con_alone = Image.new("L", (100, 100), 5)  # alone impercettibile ovunque
+    con_alone.paste(255, (40, 30, 60, 70))  # soggetto vero
+    assert riquadro_soggetto(con_alone) == (40, 30, 60, 70)
+
+
+def test_trim_arriva_al_servizio(client, immagine, monkeypatch):
+    ricevuti = {}
+
+    def finta(*args, **kwargs):
+        ricevuti.update(kwargs)
+        return b"finto", (10, 20)
+
+    monkeypatch.setattr(main, "remove_background", finta)
+    assert upload(client, immagine(), trim="true").status_code == 200
+    assert ricevuti["trim"] is True
+    assert upload(client, immagine(), trim="false").status_code == 200
+    assert ricevuti["trim"] is False
+
+
 def test_tipo_non_supportato(client):
     r = upload(client, b"non sono un'immagine", tipo="text/plain", nome="note.txt")
     assert r.status_code == 415

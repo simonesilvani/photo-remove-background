@@ -147,6 +147,16 @@ def _scaled_for_inference(img: Image.Image) -> Image.Image:
     return img.resize(size, Image.LANCZOS)
 
 
+# Sotto questa opacita' un pixel e' considerato sfondo: evita che un alone
+# quasi invisibile ai bordi della maschera allarghi il ritaglio.
+SOGLIA_RITAGLIO = 10
+
+
+def riquadro_soggetto(alpha: Image.Image) -> Optional[Tuple[int, int, int, int]]:
+    """Riquadro che contiene il soggetto, o None se la maschera e' tutta vuota."""
+    return alpha.point(lambda v: 255 if v > SOGLIA_RITAGLIO else 0).getbbox()
+
+
 def remove_background(
     data: bytes,
     model: str,
@@ -155,11 +165,14 @@ def remove_background(
     post_process: bool = True,
     background: Optional[str] = None,
     output_format: str = "png",
+    trim: bool = False,
 ) -> Tuple[bytes, Tuple[int, int]]:
-    """Restituisce (immagine senza sfondo, dimensioni originali).
+    """Restituisce (immagine senza sfondo, dimensioni del risultato).
 
     `background` e' un colore esadecimale opzionale: se assente lo sfondo
     resta trasparente, altrimenti il soggetto viene composto su quel colore.
+    Con `trim` il risultato viene ritagliato al riquadro del soggetto, togliendo
+    i margini trasparenti che altrimenti pesano su file e tempi.
     """
     original = load_image(data)
     working = _scaled_for_inference(original)
@@ -185,6 +198,13 @@ def remove_background(
     original.putalpha(alpha)
     result = original
 
+    # Il ritaglio va calcolato prima di comporre lo sfondo: dopo, l'alpha e'
+    # opaca ovunque e il riquadro coinciderebbe con l'immagine intera.
+    if trim:
+        riquadro = riquadro_soggetto(alpha)
+        if riquadro:
+            result = result.crop(riquadro)
+
     if background:
         canvas = Image.new("RGBA", result.size, hex_to_rgba(background))
         canvas.alpha_composite(result)
@@ -199,4 +219,4 @@ def remove_background(
         # Niente optimize=True: su una foto da 12 MP costava 5,0 s contro gli 0,9 s
         # della compressione di default, per il 6% di byte risparmiati.
         result.save(buffer, format="PNG")
-    return buffer.getvalue(), original.size
+    return buffer.getvalue(), result.size

@@ -12,6 +12,7 @@ export default function App() {
   const [model, setModel] = useState('u2net')
   const [alphaMatting, setAlphaMatting] = useState(false)
   const [formato, setFormato] = useState('png')
+  const [trim, setTrim] = useState(false)
   const [maxBytes, setMaxBytes] = useState(MAX_BYTES_DEFAULT)
   const maxBytesRef = useRef(MAX_BYTES_DEFAULT)
   const [bgPreset, setBgPreset] = useState('transparent')
@@ -114,6 +115,7 @@ export default function App() {
         alphaMatting,
         background: backgroundValue(),
         formato,
+        trim,
         signal: controller.signal,
       })
       setResult((prev) => {
@@ -214,6 +216,8 @@ export default function App() {
             onFormatoChange={setFormato}
             alphaMatting={alphaMatting}
             onAlphaMattingChange={setAlphaMatting}
+            trim={trim}
+            onTrimChange={setTrim}
             bgPreset={bgPreset}
             onBgPresetChange={setBgPreset}
             customColor={customColor}

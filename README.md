@@ -26,6 +26,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | 🧠 **7 modelli selezionabili** | Dal più leggero (`u2netp`, 5 MB) al più accurato (`birefnet-general`) |
 | 🎨 **Sfondo a scelta** | Trasparente oppure un colore pieno, composto lato server |
 | 📦 **PNG o WEBP** | Stesso ritaglio, file fino a 50 volte più leggero |
+| ✂️ **Ritaglio ai bordi** | Via i margini vuoti attorno al soggetto |
 | 🪶 **Alpha matting** | Bordi morbidi dove servono davvero: capelli, pelo, frange |
 | ⚡ **Full-res senza attese** | Inferenza su copia ridotta, maschera riportata sull'originale |
 | 🏎️ **Acceleratore automatico** | CoreML o CUDA se disponibili, altrimenti CPU |
@@ -145,6 +146,11 @@ così l'interfaccia avvisa prima di far partire un download da centinaia di MB.
 stessa immagine passa da **0,53 s** a **1,07 s**. Serve su capelli, pelo e tessuti sottili;
 su soggetti dai bordi netti non cambia il risultato.
 
+**Il ritaglio ai bordi vale quanto il formato.** Un soggetto piccolo dentro una foto
+grande produce un file quasi tutto vuoto: con `trim=true` una 2000×1500 esce come 364×383,
+e il PNG passa da 69 KB a 48 KB — in WEBP a **7,8 KB**. Il riquadro si calcola sulla
+maschera prima di comporre l'eventuale sfondo, ignorando gli aloni sotto il 4% di opacità.
+
 **L'acceleratore hardware viene usato da solo se c'è.** All'avvio il server cerca CoreML
 (Mac Apple Silicon) o CUDA (GPU NVIDIA) e ricade sulla CPU se non li trova, senza
 configurazione. Su un M3 Pro la stessa foto da 12 MP passa da **1,03 s a 0,84 s**, e
@@ -221,6 +227,7 @@ Corpo `multipart/form-data`:
 | `alpha_matting` | bool | `false` | rifinisce i bordi semi-trasparenti |
 | `background` | string | — | colore esadecimale (`#fff`, `#ffffff`, `#ffffffaa`); se assente lo sfondo resta trasparente |
 | `format` | string | `png` | `png` (senza perdita) o `webp` (molto più leggero) |
+| `trim` | bool | `false` | ritaglia il risultato al riquadro del soggetto |
 
 **Risposta** `200 image/png`, più gli header `X-Processing-Time` (secondi),
 `X-Image-Width` e `X-Image-Height`.

@@ -49,6 +49,7 @@ export async function removeBackground({
   alphaMatting,
   background,
   formato,
+  trim,
   signal,
   timeoutMs = TIMEOUT_MS,
 }) {
@@ -57,6 +58,7 @@ export async function removeBackground({
   form.append('model', model)
   form.append('alpha_matting', String(alphaMatting))
   form.append('format', formato)
+  form.append('trim', String(Boolean(trim)))
   if (background) form.append('background', background)
 
   // Il segnale del chiamante (annullamento manuale) e quello del timeout
