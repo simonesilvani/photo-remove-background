@@ -342,14 +342,16 @@ la suite finisce in meno di un secondo e non serve scaricare i pesi.
 ```bash
 backend/.venv/bin/pip install -r backend/requirements-dev.txt
 backend/.venv/bin/python -m pytest backend
+npm test --prefix frontend
 ```
 
 Gli stessi test girano su GitHub Actions a ogni push e a ogni pull request, su Python 3.11
 e 3.13, insieme alla build del frontend: vedi [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
-I 13 casi verificano i codici di errore (`400`, `413`, `415`, `422`), che `detail` sia
-sempre una stringa, che il tetto sui pixel scatti prima di allocare memoria e che i nomi
-dei file caricati non finiscano nei log.
+I 18 casi lato backend verificano i codici di errore (`400`, `413`, `415`, `422`), che
+`detail` sia sempre una stringa, che il tetto sui pixel scatti prima di allocare memoria e
+che i nomi dei file caricati non finiscano nei log. I 6 lato frontend coprono il client
+HTTP: timeout, annullamento, e la normalizzazione dei messaggi d'errore.
 
 ---
 
