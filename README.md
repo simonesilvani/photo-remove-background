@@ -29,7 +29,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | 🪶 **Alpha matting** | Bordi morbidi dove servono davvero: capelli, pelo, frange |
 | ⚡ **Full-res senza attese** | Inferenza su copia ridotta, maschera riportata sull'originale |
 | 🏎️ **Acceleratore automatico** | CoreML o CUDA se disponibili, altrimenti CPU |
-| 📐 **EXIF-aware** | Le foto da smartphone non escono ruotate |
+| 📱 **Foto da iPhone** | HEIC letto direttamente, e l'orientamento EXIF rispettato |
 | 🛡️ **RAM con un tetto** | Le inferenze simultanee sono limitate: il consumo non esplode sotto carico |
 | 🔒 **100% offline** | `onnxruntime` in locale: nessun upload verso terze parti |
 
@@ -216,7 +216,7 @@ Corpo `multipart/form-data`:
 
 | Campo | Tipo | Default | Descrizione |
 | :-- | :-- | :-- | :-- |
-| `file` | file | — | PNG, JPEG, WEBP, BMP o TIFF · max 15 MB e 50 Mpixel |
+| `file` | file | — | PNG, JPEG, **HEIC/HEIF**, WEBP, BMP, TIFF o AVIF · max 15 MB e 50 Mpixel |
 | `model` | string | `u2net` | uno degli id restituiti da `/api/models` |
 | `alpha_matting` | bool | `false` | rifinisce i bordi semi-trasparenti |
 | `background` | string | — | colore esadecimale (`#fff`, `#ffffff`, `#ffffffaa`); se assente lo sfondo resta trasparente |

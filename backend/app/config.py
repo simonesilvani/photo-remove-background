@@ -21,6 +21,10 @@ ALLOWED_CONTENT_TYPES = {
     "image/webp",
     "image/bmp",
     "image/tiff",
+    # formato predefinito delle foto iPhone, letto grazie a pillow-heif
+    "image/heic",
+    "image/heif",
+    "image/avif",
 }
 
 CORS_ORIGINS = os.getenv(

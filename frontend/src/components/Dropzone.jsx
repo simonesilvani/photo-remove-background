@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 
-const ACCEPT = 'image/png,image/jpeg,image/webp,image/bmp,image/tiff'
+const ACCEPT = 'image/png,image/jpeg,image/webp,image/bmp,image/tiff,image/heic,image/heif,image/avif'
 
 export default function Dropzone({ onFile, disabled }) {
   const inputRef = useRef(null)
@@ -49,7 +49,7 @@ export default function Dropzone({ onFile, disabled }) {
       <p className="dropzone__hint">
         oppure clicca per sceglierla — puoi anche incollarla con ⌘V
       </p>
-      <p className="dropzone__formats">PNG · JPEG · WEBP · BMP · TIFF — max 15 MB</p>
+      <p className="dropzone__formats">PNG · JPEG · HEIC · WEBP · BMP · TIFF</p>
     </div>
   )
 }

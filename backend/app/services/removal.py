@@ -8,6 +8,7 @@ from functools import lru_cache
 from typing import Optional, Tuple
 
 import onnxruntime as ort
+import pillow_heif
 from PIL import Image, ImageOps, UnidentifiedImageError
 from PIL.Image import DecompressionBombError
 from rembg import new_session, remove
@@ -21,6 +22,10 @@ from ..config import (
 )
 
 logger = logging.getLogger("removebg")
+
+# Insegna a Pillow ad aprire HEIC/HEIF/AVIF: e' il formato predefinito delle
+# foto iPhone, che altrimenti verrebbero rifiutate.
+pillow_heif.register_heif_opener()
 
 
 class ImageError(ValueError):

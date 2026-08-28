@@ -79,6 +79,22 @@ def test_parametri_non_validi(client, immagine, campi, atteso, frammento):
     assert frammento in r.json()["detail"]
 
 
+def test_heic_delle_foto_iphone(client, monkeypatch):
+    """Il formato predefinito delle foto iPhone deve essere accettato e letto."""
+    import pillow_heif
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (80, 60), (200, 150, 100)).save(buffer, format="HEIF")
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"finto", (80, 60)))
+    r = upload(client, buffer.getvalue(), tipo="image/heic", nome="IMG_1234.HEIC")
+    assert r.status_code == 200
+
+    # e il decoder lo legge davvero, non solo il tipo dichiarato
+    from app.services.removal import load_image
+
+    assert load_image(buffer.getvalue()).size == (80, 60)
+
+
 def test_tipo_non_supportato(client):
     r = upload(client, b"non sono un'immagine", tipo="text/plain", nome="note.txt")
     assert r.status_code == 415
