@@ -11,6 +11,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev/)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/simonesilvani/photo-remove-background/ci.yml?style=for-the-badge&label=CI)](https://github.com/simonesilvani/photo-remove-background/actions/workflows/ci.yml)
 
 </div>
 
@@ -305,6 +306,26 @@ Le stesse 12 richieste, tutte servite con esito `200` in entrambi i casi: il fre
 **un terzo della memoria** con il doppio del tempo di smaltimento della coda (10,1 s contro
 4,3 s). Regola pratica: `RB_MAX_CONCURRENCY=1` sotto i 2 GB di RAM, il default `2` fino a
 4 GB, oltre si può alzare.
+
+---
+
+## 🧪 Test
+
+Coprono validazione e gestione degli errori — la parte che si rompe più facilmente — e
+girano **senza caricare nessun modello**: l'inferenza viene sostituita da uno stub, quindi
+la suite finisce in meno di un secondo e non serve scaricare i pesi.
+
+```bash
+backend/.venv/bin/pip install -r backend/requirements-dev.txt
+backend/.venv/bin/python -m pytest backend
+```
+
+Gli stessi test girano su GitHub Actions a ogni push e a ogni pull request, su Python 3.11
+e 3.13, insieme alla build del frontend: vedi [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+I 13 casi verificano i codici di errore (`400`, `413`, `415`, `422`), che `detail` sia
+sempre una stringa, che il tetto sui pixel scatti prima di allocare memoria e che i nomi
+dei file caricati non finiscano nei log.
 
 ---
 
