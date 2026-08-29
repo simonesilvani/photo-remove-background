@@ -1,0 +1,13 @@
+services:
+  remove-background:
+    build: .
+    image: remove-background
+    ports:
+      - "8000:8000"
+    volumes:
+      # I pesi scaricati al primo avvio restano qui, fuori dal contenitore.
+      - modelli:/root/.rembg
+    restart: unless-stopped
+
+volumes:
+  modelli:

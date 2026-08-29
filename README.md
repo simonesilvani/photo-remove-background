@@ -70,6 +70,20 @@ incorporarlo in un'altra app o usare l'API da sola.
 
 ## 🚀 Avvio rapido
 
+### Con Docker
+
+Un comando solo, senza installare Python o Node:
+
+```bash
+docker compose up --build
+```
+
+L'app risponde su **http://localhost:8000**: l'immagine contiene il frontend già compilato
+e l'API nello stesso processo. I pesi del modello si scaricano al primo avvio in un volume,
+quindi restano lì fra un riavvio e l'altro.
+
+### Senza Docker
+
 Servono **Python 3.11+**, **Node 18+** e ~700 MB di spazio (venv, node_modules e pesi del
 modello), più due terminali.
 
@@ -312,6 +326,7 @@ Il backend si configura con variabili d'ambiente, nessun file di config da modif
 | `RB_MAX_UPLOAD_BYTES` | `15728640` | dimensione massima dell'upload (15 MB) |
 | `RB_MAX_IMAGE_PIXELS` | `50000000` | tetto ai pixel decodificati (50 Mpixel) |
 | `RB_MAX_BATCH_FILES` | `10` | immagini per richiesta in blocco |
+| `RB_STATIC_DIR` | `frontend/dist` | frontend compilato da servire; se assente, l'API risponde da sola |
 | `RB_WEBP_QUALITY` | `92` | qualità del WEBP (la trasparenza resta senza perdita) |
 | `RB_ACCELERATION` | `1` | usa CoreML o CUDA se presenti; `0` forza la CPU |
 | `RB_MAX_INFERENCE_SIDE` | `2000` | lato lungo massimo dato in pasto al modello |
@@ -330,8 +345,11 @@ non serve: ci pensa il proxy di Vite).
 npm run build --prefix frontend
 ```
 
-Genera `frontend/dist/`, servibile da qualsiasi web server statico. Per il backend, dietro
-un reverse proxy:
+Genera `frontend/dist/`. Se quella cartella esiste, **il backend la serve da solo** su `/`,
+e l'applicazione gira su un unico indirizzo senza bisogno del proxy di Vite né di CORS —
+è così che funziona l'immagine Docker. Il percorso si cambia con `RB_STATIC_DIR`.
+
+Per il backend, dietro un reverse proxy:
 
 ```bash
 ./backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2

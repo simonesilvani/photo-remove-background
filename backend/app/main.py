@@ -5,6 +5,7 @@ import asyncio
 import io
 import json
 import logging
+import pathlib
 import time
 import zipfile
 from pathlib import PurePath
@@ -14,6 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from .config import (
     ALLOWED_CONTENT_TYPES,
@@ -26,6 +28,7 @@ from .config import (
     MAX_IMAGE_PIXELS,
     MAX_UPLOAD_BYTES,
     QUEUE_TIMEOUT_SECONDS,
+    STATIC_DIR,
 )
 from .services.removal import (
     ImageError,
@@ -368,3 +371,12 @@ async def remove_background_endpoint(
             "Access-Control-Expose-Headers": "X-Processing-Time, X-Image-Width, X-Image-Height",
         },
     )
+
+
+# Il frontend compilato viene servito dalla stessa applicazione, ma solo se
+# esiste: in sviluppo non c'e' e ci pensa Vite. Il mount sta in fondo perche'
+# la radice "/" cattura tutto quello che non e' stato gia' associato sopra.
+_statici = pathlib.Path(STATIC_DIR)
+if _statici.is_dir():
+    app.mount("/", StaticFiles(directory=_statici, html=True), name="frontend")
+    logger.info("Frontend servito da %s", _statici)

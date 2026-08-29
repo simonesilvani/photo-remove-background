@@ -1,5 +1,6 @@
 """Configurazione dell'applicazione, sovrascrivibile via variabili d'ambiente."""
 import os
+import pathlib
 
 DEFAULT_MODEL = os.getenv("RB_DEFAULT_MODEL", "u2net")
 
@@ -30,6 +31,13 @@ ALLOWED_CONTENT_TYPES = {
 CORS_ORIGINS = os.getenv(
     "RB_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
+
+# Frontend gia' compilato da servire insieme all'API. Se la cartella esiste,
+# l'applicazione risponde su un solo indirizzo e non serve piu' il proxy di Vite.
+STATIC_DIR = os.getenv(
+    "RB_STATIC_DIR",
+    str(pathlib.Path(__file__).resolve().parents[2] / "frontend" / "dist"),
+)
 
 # Immagini per richiesta in blocco. Lo ZIP viene composto in memoria per non
 # scrivere le foto degli utenti su disco: il tetto serve a tenerla limitata.
