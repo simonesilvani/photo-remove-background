@@ -1,5 +1,7 @@
 """Validazione degli input e forma delle risposte dell'API."""
 import io
+import json
+import zipfile
 
 import pytest
 from PIL import Image
@@ -143,6 +145,85 @@ def test_trim_arriva_al_servizio(client, immagine, monkeypatch):
     assert ricevuti["trim"] is True
     assert upload(client, immagine(), trim="false").status_code == 200
     assert ricevuti["trim"] is False
+
+
+def test_blocco_restituisce_uno_zip(client, immagine, monkeypatch):
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"finto", (10, 20)))
+    r = client.post(
+        "/api/remove-background/batch",
+        files=[
+            ("files", ("a.jpg", immagine(), "image/jpeg")),
+            ("files", ("b.jpg", immagine(), "image/jpeg")),
+        ],
+        data={"format": "webp"},
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "application/zip"
+    assert r.headers["X-Processed"] == "2"
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        assert sorted(n for n in z.namelist() if n != "manifest.json") == ["a.webp", "b.webp"]
+        manifest = json.loads(z.read("manifest.json"))
+    # il manifest lega ogni risultato alla foto di partenza
+    assert manifest["risultati"] == [
+        {"origine": "a.jpg", "file": "a.webp"},
+        {"origine": "b.jpg", "file": "b.webp"},
+    ]
+    assert manifest["errori"] == []
+
+
+def test_blocco_non_si_ferma_al_primo_errore(client, immagine, monkeypatch):
+    """Un file rotto non deve annullare il lavoro sugli altri."""
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"finto", (10, 20)))
+    r = client.post(
+        "/api/remove-background/batch",
+        files=[
+            ("files", ("buona.jpg", immagine(), "image/jpeg")),
+            ("files", ("appunti.txt", b"non sono un'immagine", "text/plain")),
+        ],
+    )
+    assert r.status_code == 200
+    assert (r.headers["X-Processed"], r.headers["X-Skipped"]) == ("1", "1")
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        assert "buona.png" in z.namelist()
+        assert "appunti.txt" not in z.namelist()  # non deve entrare l'originale
+        assert "text/plain" in z.read("errori.txt").decode()
+
+
+def test_blocco_evita_le_collisioni_di_nome(client, immagine, monkeypatch):
+    monkeypatch.setattr(main, "remove_background", lambda *a, **k: (b"finto", (10, 20)))
+    r = client.post(
+        "/api/remove-background/batch",
+        files=[
+            ("files", ("foto.jpg", immagine(), "image/jpeg")),
+            ("files", ("foto.png", immagine(), "image/png")),
+            ("files", ("cartella/foto.jpg", immagine(), "image/jpeg")),
+        ],
+    )
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        assert sorted(n for n in z.namelist() if n != "manifest.json") == [
+            "foto-2.png",
+            "foto-3.png",
+            "foto.png",
+        ]
+
+
+def test_blocco_rifiuta_troppi_file(client, immagine, monkeypatch):
+    monkeypatch.setattr(main, "MAX_BATCH_FILES", 2)
+    r = client.post(
+        "/api/remove-background/batch",
+        files=[("files", (f"{i}.jpg", immagine(), "image/jpeg")) for i in range(3)],
+    )
+    assert r.status_code == 413
+    assert "massimo" in r.json()["detail"]
+
+
+def test_blocco_fallisce_se_nessuna_immagine_e_valida(client):
+    r = client.post(
+        "/api/remove-background/batch",
+        files=[("files", ("a.txt", b"testo", "text/plain"))],
+    )
+    assert r.status_code == 400
+    assert "Nessuna immagine elaborata" in r.json()["detail"]
 
 
 def test_tipo_non_supportato(client):

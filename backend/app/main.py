@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import json
 import logging
 import time
+import zipfile
+from pathlib import PurePath
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -17,6 +21,7 @@ from .config import (
     AVAILABLE_MODELS,
     CORS_ORIGINS,
     DEFAULT_MODEL,
+    MAX_BATCH_FILES,
     MAX_CONCURRENCY,
     MAX_IMAGE_PIXELS,
     MAX_UPLOAD_BYTES,
@@ -150,16 +155,8 @@ async def models():
     }
 
 
-@app.post("/api/remove-background")
-async def remove_background_endpoint(
-    file: UploadFile = File(..., description="Immagine da elaborare"),
-    model: str = Form(DEFAULT_MODEL),
-    alpha_matting: bool = Form(False),
-    background: str | None = Form(None),
-    format: str = Form("png"),
-    trim: bool = Form(False),
-):
-    """Restituisce l'immagine con lo sfondo rimosso, in PNG o WEBP."""
+def _valida_opzioni(model: str, format: str, background: str | None) -> tuple[str, str | None]:
+    """Controlla le opzioni comuni ai due endpoint. Restituisce (formato, sfondo)."""
     if model not in AVAILABLE_MODELS:
         raise HTTPException(400, f"Modello non supportato: {model}")
 
@@ -171,20 +168,22 @@ async def remove_background_endpoint(
             f"Ammessi: {', '.join(sorted(ALLOWED_OUTPUT_FORMATS))}",
         )
 
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(
-            415,
-            f"Tipo non supportato: {file.content_type}. "
-            f"Ammessi: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}",
-        )
-
     bg = background or None
     if bg:
         try:
             hex_to_rgba(bg)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+    return formato, bg
 
+
+async def _leggi_immagine(file: UploadFile) -> bytes:
+    if file.content_type not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            415,
+            f"Tipo non supportato: {file.content_type}. "
+            f"Ammessi: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}",
+        )
     data = await file.read()
     if not data:
         raise HTTPException(400, "File vuoto")
@@ -192,44 +191,165 @@ async def remove_background_endpoint(
         raise HTTPException(
             413, f"File troppo grande (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)"
         )
+    return data
 
-    # Il download dei pesi (fino a 973 MB) avviene PRIMA di occupare uno slot:
-    # dentro lo slot bloccherebbe per minuti una delle poche corsie di inferenza,
-    # facendo scadere in coda tutte le altre richieste.
+
+async def _prepara_modello(model: str) -> None:
+    """Scarica i pesi PRIMA di occupare uno slot: dentro lo slot bloccherebbe
+    per minuti una delle poche corsie di inferenza, facendo scadere in coda
+    tutte le altre richieste."""
     try:
         await asyncio.to_thread(warmup, model)
     except Exception:
         logger.exception("Impossibile preparare il modello %s", model)
         raise HTTPException(503, f"Modello {model} non disponibile, riprova")
 
-    queued = time.perf_counter()
-    try:
-        async with inference_slot():
-            started = time.perf_counter()
-            # L'inferenza e' CPU-bound e bloccante: fuori dall'event loop.
-            png, size = await asyncio.to_thread(
-                remove_background,
-                data,
-                model,
-                alpha_matting=alpha_matting,
-                background=bg,
-                output_format=formato,
-                trim=trim,
-            )
-    except HTTPException:
-        raise
-    except ImageTooLargeError as exc:  # sottoclasse di ImageError: prima di quella
-        raise HTTPException(413, str(exc)) from exc
-    except ImageError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    except Exception:
-        logger.exception(
-            "Errore su un'immagine %s di %d byte", file.content_type, len(data)
-        )
-        raise HTTPException(500, "Errore durante l'elaborazione dell'immagine")
 
-    elapsed = time.perf_counter() - started
-    waited = started - queued
+async def _elabora(
+    data: bytes, model: str, **opzioni
+) -> tuple[bytes, tuple[int, int], float]:
+    """Una singola immagine dentro uno slot di inferenza.
+
+    Restituisce anche i secondi passati in coda, utili nei log per distinguere
+    "il server e' lento" da "il server e' occupato".
+    """
+    in_coda = time.perf_counter()
+    async with inference_slot():
+        attesa = time.perf_counter() - in_coda
+        try:
+            # L'inferenza e' CPU-bound e bloccante: fuori dall'event loop.
+            png, size = await asyncio.to_thread(remove_background, data, model, **opzioni)
+            return png, size, attesa
+        except ImageTooLargeError as exc:  # sottoclasse di ImageError: prima di quella
+            raise HTTPException(413, str(exc)) from exc
+        except ImageError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception:
+            logger.exception("Errore su un'immagine di %d byte", len(data))
+            raise HTTPException(500, "Errore durante l'elaborazione dell'immagine")
+
+
+def _nome_unico(nome: str, formato: str, usati: set[str]) -> str:
+    """Nome del file dentro lo ZIP, senza percorsi e senza collisioni."""
+    base = PurePath(nome or "immagine").name.rsplit(".", 1)[0] or "immagine"
+    candidato = f"{base}.{formato}"
+    contatore = 2
+    while candidato in usati:
+        candidato = f"{base}-{contatore}.{formato}"
+        contatore += 1
+    usati.add(candidato)
+    return candidato
+
+
+@app.post("/api/remove-background/batch")
+async def remove_background_batch(
+    files: list[UploadFile] = File(..., description="Immagini da elaborare"),
+    model: str = Form(DEFAULT_MODEL),
+    alpha_matting: bool = Form(False),
+    background: str | None = Form(None),
+    format: str = Form("png"),
+    trim: bool = Form(False),
+):
+    """Elabora piu' immagini e restituisce uno ZIP.
+
+    Ogni immagine passa per uno slot di inferenza separato, cosi' un blocco
+    lungo non monopolizza il server: le richieste degli altri si incastrano fra
+    una foto e l'altra. Un file che fallisce non annulla il resto: finisce in
+    `errori.txt` dentro lo ZIP.
+    """
+    formato, bg = _valida_opzioni(model, format, background)
+    if not files:
+        raise HTTPException(400, "Nessun file caricato")
+    if len(files) > MAX_BATCH_FILES:
+        raise HTTPException(
+            413, f"Troppe immagini: il massimo per richiesta e' {MAX_BATCH_FILES}"
+        )
+
+    await _prepara_modello(model)
+
+    buffer = io.BytesIO()
+    usati: set[str] = set()
+    errori: list[str] = []
+    manifest: list[dict[str, str]] = []
+    riusciti = 0
+    inizio = time.perf_counter()
+
+    # ZIP_STORED e non deflate: PNG e WEBP sono gia' compressi, comprimerli di
+    # nuovo costerebbe CPU per un guadagno nullo.
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as zip_file:
+        for file in files:
+            nome = file.filename or "immagine"
+            try:
+                data = await _leggi_immagine(file)
+                png, _size, _attesa = await _elabora(
+                    data,
+                    model,
+                    alpha_matting=alpha_matting,
+                    background=bg,
+                    output_format=formato,
+                    trim=trim,
+                )
+            except HTTPException as exc:
+                errori.append(f"{nome}: {exc.detail}")
+                continue
+            voce = _nome_unico(nome, formato, usati)
+            zip_file.writestr(voce, png)
+            manifest.append({"origine": nome, "file": voce})
+            riusciti += 1
+
+        # Il manifest lega ogni risultato alla foto di partenza: i nomi dentro
+        # lo ZIP sono normalizzati e deduplicati, quindi da soli non basterebbero
+        # a ricostruire la corrispondenza.
+        zip_file.writestr(
+            "manifest.json",
+            json.dumps({"risultati": manifest, "errori": errori}, ensure_ascii=False, indent=1),
+        )
+        if errori:
+            zip_file.writestr("errori.txt", "\n".join(errori) + "\n")
+
+    if not riusciti:
+        raise HTTPException(400, "Nessuna immagine elaborata. " + " · ".join(errori))
+
+    logger.info(
+        "blocco di %d immagini: %d elaborate, %d scartate, in %.2fs",
+        len(files), riusciti, len(errori), time.perf_counter() - inizio,
+    )
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="senza-sfondo.zip"',
+            "X-Processed": str(riusciti),
+            "X-Skipped": str(len(errori)),
+            "Access-Control-Expose-Headers": "X-Processed, X-Skipped",
+        },
+    )
+
+
+@app.post("/api/remove-background")
+async def remove_background_endpoint(
+    file: UploadFile = File(..., description="Immagine da elaborare"),
+    model: str = Form(DEFAULT_MODEL),
+    alpha_matting: bool = Form(False),
+    background: str | None = Form(None),
+    format: str = Form("png"),
+    trim: bool = Form(False),
+):
+    """Restituisce l'immagine con lo sfondo rimosso, in PNG o WEBP."""
+    formato, bg = _valida_opzioni(model, format, background)
+    data = await _leggi_immagine(file)
+    await _prepara_modello(model)
+
+    inizio = time.perf_counter()
+    png, size, waited = await _elabora(
+        data,
+        model,
+        alpha_matting=alpha_matting,
+        background=bg,
+        output_format=formato,
+        trim=trim,
+    )
+    elapsed = time.perf_counter() - inizio - waited
     # Il nome del file non finisce nei log: e' un dato dell'utente (puo' contenere
     # nomi, diagnosi, numeri di contratto) e per il debug bastano peso e tempi.
     logger.info(

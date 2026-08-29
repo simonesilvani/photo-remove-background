@@ -23,6 +23,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | :-- | :-- |
 | 🖱️ **Tre modi per caricare** | Trascina, clicca o incolla con <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd> |
 | 📋 **Copia negli appunti** | Il risultato torna negli appunti, senza passare dal disco |
+| 🗂️ **Elaborazione in blocco** | Più immagini insieme, risultato in uno ZIP |
 | 🎚️ **Confronto prima/dopo** | Slider trascinabile, con scacchiera per leggere la trasparenza |
 | 🧠 **7 modelli selezionabili** | Dal più leggero (`u2netp`, 5 MB) al più accurato (`birefnet-general`) |
 | 🎨 **Sfondo a scelta** | Trasparente oppure un colore pieno, composto lato server |
@@ -273,6 +274,27 @@ print(r.headers["X-Processing-Time"], "secondi")
 | `500` | errore inatteso durante l'elaborazione (loggato lato server) |
 | `503` | coda di inferenza satura oltre `RB_QUEUE_TIMEOUT`; la risposta include `Retry-After` |
 
+### `POST /api/remove-background/batch`
+
+Stesso corpo dell'endpoint singolo, ma con il campo `files` ripetuto per ogni immagine, e
+in risposta uno **ZIP** (`application/zip`) con gli header `X-Processed` e `X-Skipped`.
+
+```bash
+curl -F "files=@a.jpg" -F "files=@b.jpg" -F "format=webp" \
+     http://localhost:8000/api/remove-background/batch -o senza-sfondo.zip
+```
+
+Dentro lo ZIP c'è anche un `manifest.json` che lega ogni risultato alla foto di partenza
+(i nomi vengono normalizzati e deduplicati, quindi da soli non basterebbero) — è quello che
+permette all'interfaccia di mostrare il confronto prima/dopo di ogni immagine.
+
+Ogni immagine passa per uno slot di inferenza separato, così un blocco lungo non
+monopolizza il server: le richieste degli altri si incastrano fra una foto e l'altra. Un
+file che fallisce non annulla il resto — finisce in `errori.txt` dentro lo ZIP — e la
+richiesta fallisce con `400` solo se non è riuscita nemmeno un'immagine. Il tetto è di
+`RB_MAX_BATCH_FILES` immagini per richiesta, perché lo ZIP viene composto in memoria per
+non scrivere le foto su disco.
+
 ### `GET /api/models` · `GET /api/health`
 
 Rispettivamente l'elenco dei modelli disponibili con una descrizione e il modello di
@@ -289,6 +311,7 @@ Il backend si configura con variabili d'ambiente, nessun file di config da modif
 | `RB_DEFAULT_MODEL` | `u2net` | modello usato quando il client non ne specifica uno |
 | `RB_MAX_UPLOAD_BYTES` | `15728640` | dimensione massima dell'upload (15 MB) |
 | `RB_MAX_IMAGE_PIXELS` | `50000000` | tetto ai pixel decodificati (50 Mpixel) |
+| `RB_MAX_BATCH_FILES` | `10` | immagini per richiesta in blocco |
 | `RB_WEBP_QUALITY` | `92` | qualità del WEBP (la trasparenza resta senza perdita) |
 | `RB_ACCELERATION` | `1` | usa CoreML o CUDA se presenti; `0` forza la CPU |
 | `RB_MAX_INFERENCE_SIDE` | `2000` | lato lungo massimo dato in pasto al modello |

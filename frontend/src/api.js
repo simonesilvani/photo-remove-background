@@ -43,6 +43,49 @@ async function messaggioErrore(res) {
 // a meta' elaborazione la rotella gira per sempre.
 const TIMEOUT_MS = 180_000
 
+export async function removeBackgroundBatch({
+  files,
+  model,
+  alphaMatting,
+  background,
+  formato,
+  trim,
+  signal,
+  timeoutMs = TIMEOUT_MS,
+}) {
+  const form = new FormData()
+  for (const file of files) form.append('files', file)
+  form.append('model', model)
+  form.append('alpha_matting', String(alphaMatting))
+  form.append('format', formato)
+  form.append('trim', String(Boolean(trim)))
+  if (background) form.append('background', background)
+
+  const scadenza = AbortSignal.timeout(timeoutMs)
+  const segnale = signal ? AbortSignal.any([signal, scadenza]) : scadenza
+
+  let res
+  try {
+    res = await fetch(`${BASE}/api/remove-background/batch`, {
+      method: 'POST',
+      body: form,
+      signal: segnale,
+    })
+  } catch (err) {
+    if (scadenza.aborted) throw new Error('Il server non ha risposto in tempo. Riprova.')
+    throw err
+  }
+  if (!res.ok) throw new Error(await messaggioErrore(res))
+
+  const blob = await res.blob()
+  return {
+    blob,
+    url: URL.createObjectURL(blob),
+    elaborate: Number(res.headers.get('X-Processed')) || 0,
+    scartate: Number(res.headers.get('X-Skipped')) || 0,
+  }
+}
+
 export async function removeBackground({
   file,
   model,

@@ -31,6 +31,10 @@ CORS_ORIGINS = os.getenv(
     "RB_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 ).split(",")
 
+# Immagini per richiesta in blocco. Lo ZIP viene composto in memoria per non
+# scrivere le foto degli utenti su disco: il tetto serve a tenerla limitata.
+MAX_BATCH_FILES = int(os.getenv("RB_MAX_BATCH_FILES", 10))
+
 # Acceleratore hardware quando disponibile (CoreML sui Mac Apple Silicon, CUDA
 # con GPU NVIDIA): misurato 1,9x sull'inferenza. RB_ACCELERATION=0 forza la CPU.
 USE_ACCELERATION = os.getenv("RB_ACCELERATION", "1") != "0"

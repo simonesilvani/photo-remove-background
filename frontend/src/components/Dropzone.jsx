@@ -8,8 +8,8 @@ export default function Dropzone({ onFile, disabled }) {
 
   const handleFiles = useCallback(
     (files) => {
-      const file = files?.[0]
-      if (file) onFile(file)
+      const lista = [...(files ?? [])]
+      if (lista.length) onFile(lista)
     },
     [onFile]
   )
@@ -38,6 +38,7 @@ export default function Dropzone({ onFile, disabled }) {
         ref={inputRef}
         type="file"
         accept={ACCEPT}
+        multiple
         hidden
         onChange={(e) => {
           handleFiles(e.target.files)
@@ -47,7 +48,7 @@ export default function Dropzone({ onFile, disabled }) {
       <div className="dropzone__icon" aria-hidden="true">🖼️</div>
       <p className="dropzone__title">Trascina qui un'immagine</p>
       <p className="dropzone__hint">
-        oppure clicca per sceglierla — puoi anche incollarla con ⌘V
+        oppure clicca per sceglierle — piu' immagini insieme diventano uno ZIP
       </p>
       <p className="dropzone__formats">PNG · JPEG · HEIC · WEBP · BMP · TIFF</p>
     </div>
