@@ -23,7 +23,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | :-- | :-- |
 | 🖱️ **Tre modi per caricare** | Trascina, clicca o incolla con <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd> |
 | 📋 **Copia negli appunti** | Il risultato torna negli appunti, senza passare dal disco |
-| 🗂️ **Elaborazione in blocco** | Più immagini insieme, risultato in uno ZIP |
+| 🗂️ **Elaborazione in blocco** | Più immagini insieme, con avanzamento e ZIP finale |
 | 🎚️ **Confronto prima/dopo** | Slider trascinabile, con scacchiera per leggere la trasparenza |
 | 🧠 **7 modelli selezionabili** | Dal più leggero (`u2netp`, 5 MB) al più accurato (`birefnet-general`) |
 | 🎨 **Sfondo a scelta** | Trasparente oppure un colore pieno, composto lato server |
@@ -47,24 +47,25 @@ flowchart LR
     end
 
     subgraph Server["🐍 Server — FastAPI + Uvicorn"]
-        API["POST /api/remove-background"]
+        API["POST /api/remove-background<br/>POST /api/remove-background/batch"]
         SVC["services/removal.py"]
     end
 
-    subgraph Engine["🧠 Inferenza — onnxruntime (CPU)"]
-        MODEL["Modello ONNX<br/>u2net · isnet · birefnet"]
+    subgraph Engine["🧠 Inferenza — onnxruntime"]
+        MODEL["Modello ONNX su CoreML, CUDA o CPU<br/>u2net · isnet · birefnet"]
     end
 
     UI -- "multipart/form-data" --> API
-    API -- "thread separato" --> SVC
-    SVC -- "immagine ridimensionata" --> MODEL
+    API -- "slot di inferenza<br/>+ thread separato" --> SVC
+    SVC -- "copia ridotta" --> MODEL
     MODEL -- "maschera alpha" --> SVC
-    SVC -- "PNG RGBA" --> API
-    API -- "image/png" --> UI
+    SVC -- "immagine RGBA" --> API
+    API -- "PNG · WEBP · ZIP" --> UI
 ```
 
-Il frontend parla con il backend attraverso tre soli endpoint HTTP: puoi sostituirlo,
-incorporarlo in un'altra app o usare l'API da sola.
+Il frontend parla con il backend attraverso quattro endpoint HTTP: puoi sostituirlo,
+incorporarlo in un'altra app o usare l'API da sola. In produzione lo stesso processo
+serve anche il frontend compilato, quindi l'applicazione gira su un solo indirizzo.
 
 ---
 
@@ -172,6 +173,12 @@ maschera prima di comporre l'eventuale sfondo, ignorando gli aloni sotto il 4% d
 configurazione. Su un M3 Pro la stessa foto da 12 MP passa da **1,03 s a 0,84 s**, e
 l'inferenza da sola quasi raddoppia di velocità (0,40 s → 0,21 s). Il provider scelto
 compare nei log all'avvio.
+
+> [!IMPORTANT]
+> CoreML si paga in memoria: **881 MB a riposo contro 414 MB** su CPU, cioè il doppio
+> abbondante, per guadagnare circa 0,25 s a immagine. Su una macchina con poca RAM, o
+> quando a contare è quanti processi ci stanno, conviene `RB_ACCELERATION=0`. Nei
+> contenitori Linux la scelta non si pone: CoreML non è disponibile e si usa la CPU.
 
 **Il formato di uscita pesa più del modello.** Sulla stessa foto da 12 MP:
 
@@ -298,9 +305,21 @@ curl -F "files=@a.jpg" -F "files=@b.jpg" -F "format=webp" \
      http://localhost:8000/api/remove-background/batch -o senza-sfondo.zip
 ```
 
+> [!NOTE]
+> L'interfaccia non usa questo endpoint: elabora le immagini **una alla volta** con
+> l'endpoint singolo, per poter mostrare a che punto è ("3 di 10") e rendere disponibile
+> ogni risultato appena pronto. Lo ZIP finale lo compone il browser. L'endpoint in blocco
+> resta la via comoda per chi usa l'API da script, dove l'avanzamento non serve.
+
 Dentro lo ZIP c'è anche un `manifest.json` che lega ogni risultato alla foto di partenza
 (i nomi vengono normalizzati e deduplicati, quindi da soli non basterebbero) — è quello che
 permette all'interfaccia di mostrare il confronto prima/dopo di ogni immagine.
+
+Lo ZIP viene composto in memoria, quindi il formato scelto pesa: dieci foto da 12 MP in
+PNG producono un archivio da **191 MB**, le stesse in WEBP circa **4 MB**. Per questo
+esiste `RB_MAX_BATCH_BYTES` oltre al limite per singolo file. Se chi ha inviato chiude la
+pagina a metà, l'elaborazione si ferma invece di continuare a consumare CPU per un
+risultato che nessuno riceverà.
 
 Ogni immagine passa per uno slot di inferenza separato, così un blocco lungo non
 monopolizza il server: le richieste degli altri si incastrano fra una foto e l'altra. Un
@@ -326,6 +345,7 @@ Il backend si configura con variabili d'ambiente, nessun file di config da modif
 | `RB_MAX_UPLOAD_BYTES` | `15728640` | dimensione massima dell'upload (15 MB) |
 | `RB_MAX_IMAGE_PIXELS` | `50000000` | tetto ai pixel decodificati (50 Mpixel) |
 | `RB_MAX_BATCH_FILES` | `10` | immagini per richiesta in blocco |
+| `RB_MAX_BATCH_BYTES` | `62914560` | peso complessivo di una richiesta in blocco (60 MB) |
 | `RB_STATIC_DIR` | `frontend/dist` | frontend compilato da servire; se assente, l'API risponde da sola |
 | `RB_WEBP_QUALITY` | `92` | qualità del WEBP (la trasparenza resta senza perdita) |
 | `RB_ACCELERATION` | `1` | usa CoreML o CUDA se presenti; `0` forza la CPU |

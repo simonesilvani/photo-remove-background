@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import Dropzone from './components/Dropzone.jsx'
 import CompareSlider from './components/CompareSlider.jsx'
 import Controls, { PRESETS } from './components/Controls.jsx'
-import { fetchLimits, fetchModels, removeBackground, removeBackgroundBatch } from './api.js'
+import { fetchLimits, fetchModels, removeBackground } from './api.js'
 import { copiaImmagine, supportaCopia } from './clipboard.js'
 import { preparaFile, preparaFiles } from './file.js'
-import { leggiZip } from './zip.js'
+import { creaZip } from './zip.js'
 
 // Valore di ripiego: quello vero arriva da /api/health all'avvio.
 const MAX_BYTES_DEFAULT = 15 * 1024 * 1024
@@ -21,6 +21,8 @@ export default function App() {
   const [blocco, setBlocco] = useState([])
   const [anteprima, setAnteprima] = useState(null)
   const [risultatiBlocco, setRisultatiBlocco] = useState(new Map())
+  const [progresso, setProgresso] = useState(null)
+  const [scarti, setScarti] = useState([])
   const maxBytesRef = useRef(MAX_BYTES_DEFAULT)
   const [bgPreset, setBgPreset] = useState('transparent')
   const [customColor, setCustomColor] = useState('#4f46e5')
@@ -95,6 +97,8 @@ export default function App() {
 
     chiudiAnteprima()
     scartaRisultatiBlocco()
+    setScarti([])
+    setProgresso(null)
     const { pronti, problemi } = await preparaFiles(files, { maxBytes: maxBytesRef.current })
     if (!pronti.length) {
       setError(problemi.join(' · ') || 'Nessuna immagine utilizzabile')
@@ -128,6 +132,16 @@ export default function App() {
     })
   }
 
+  /** Nome della voce nello ZIP: estensione nuova e nessuna collisione. */
+  function nomeVoceZip(nome, estensione, usati) {
+    const base = nome.split('/').pop().replace(/\.[^.]+$/, '') || 'immagine'
+    let candidato = `${base}.${estensione}`
+    let contatore = 2
+    while (usati.has(candidato)) candidato = `${base}-${contatore++}.${estensione}`
+    usati.add(candidato)
+    return candidato
+  }
+
   function backgroundValue() {
     if (bgPreset === 'custom') return customColor
     return PRESETS.find((p) => p.id === bgPreset)?.value ?? null
@@ -143,36 +157,56 @@ export default function App() {
     setError(null)
     try {
       if (blocco.length) {
-        const esito = await removeBackgroundBatch({
-          files: blocco,
-          model,
-          alphaMatting,
-          background: backgroundValue(),
-          formato,
-          trim,
-          signal: controller.signal,
-        })
+        // Una alla volta invece dell'endpoint /batch: il server le elabora
+        // comunque in sequenza, ma cosi' l'utente vede a che punto siamo e i
+        // singoli risultati sono disponibili appena pronti.
+        const fatti = new Map()
+        const problemi = []
+        for (const [i, f] of blocco.entries()) {
+          setProgresso({ fatte: i, totali: blocco.length, nome: f.name })
+          try {
+            const esito = await removeBackground({
+              file: f,
+              model,
+              alphaMatting,
+              background: backgroundValue(),
+              formato,
+              trim,
+              signal: controller.signal,
+            })
+            fatti.set(f.name, esito)
+          } catch (err) {
+            if (err.name === 'AbortError') return
+            problemi.push(`${f.name}: ${err.message}`)
+          }
+        }
+        setProgresso(null)
+        setScarti(problemi)
+        if (!fatti.size) {
+          setError(problemi.join(' · ') || 'Nessuna immagine elaborata')
+          return
+        }
+
+        const usati = new Set()
+        const voci = [...fatti].map(([nome, esito]) => ({
+          nome: nomeVoceZip(nome, formato, usati),
+          blob: esito.blob,
+        }))
+        const zip = await creaZip(voci)
         setResult((prev) => {
           if (prev?.url) URL.revokeObjectURL(prev.url)
-          return { ...esito, formato, zip: true }
-        })
-        // Lo ZIP viene riaperto qui per mostrare il confronto prima/dopo di
-        // ogni foto: il manifest dice quale risultato appartiene a quale.
-        try {
-          const dentro = await leggiZip(esito.blob, { png: 'image/png', webp: 'image/webp' })
-          const manifest = JSON.parse(await dentro.get('manifest.json').text())
-          const mappa = new Map()
-          for (const { origine, file } of manifest.risultati) {
-            const risultato = dentro.get(file)
-            if (risultato) mappa.set(origine, URL.createObjectURL(risultato))
+          return {
+            url: URL.createObjectURL(zip),
+            zip: true,
+            formato,
+            elaborate: fatti.size,
+            scartate: problemi.length,
           }
-          setRisultatiBlocco((prev) => {
-            for (const url of prev.values()) URL.revokeObjectURL(url)
-            return mappa
-          })
-        } catch {
-          // Se lo ZIP non si legge, resta comunque scaricabile: nessun errore.
-        }
+        })
+        setRisultatiBlocco((prev) => {
+          for (const url of prev.values()) URL.revokeObjectURL(url)
+          return new Map([...fatti].map(([nome, esito]) => [nome, esito.url]))
+        })
         return
       }
       const next = await removeBackground({
@@ -216,6 +250,8 @@ export default function App() {
     abortRef.current?.abort()
     chiudiAnteprima()
     scartaRisultatiBlocco()
+    setScarti([])
+    setProgresso(null)
     setBlocco([])
     setFile(null)
     setOriginalUrl((prev) => {
@@ -265,6 +301,14 @@ export default function App() {
                       <div className="blocco__riga">
                         <span className="filename">{f.name}</span>
                         <span className="badge">{Math.round(f.size / 1024)} KB</span>
+                        {risultatiBlocco.has(f.name) && (
+                          <span className="esito esito--ok" title="Elaborata">✓</span>
+                        )}
+                        {scarti.some((p) => p.startsWith(`${f.name}:`)) && (
+                          <span className="esito esito--ko" title={scarti.find((p) => p.startsWith(`${f.name}:`))}>
+                            ✕
+                          </span>
+                        )}
                         <button
                           type="button"
                           className="btn-mini"
@@ -294,10 +338,17 @@ export default function App() {
                   )
                 })}
               </ul>
-              {loading && (
-                <p className="blocco__stato">
-                  <span className="spinner" aria-hidden="true" /> Elaborazione in corso…
-                </p>
+              {loading && progresso && (
+                <div className="blocco__stato">
+                  <div className="barra" role="progressbar" aria-valuenow={progresso.fatte}
+                       aria-valuemin={0} aria-valuemax={progresso.totali}>
+                    <span style={{ width: `${(progresso.fatte / progresso.totali) * 100}%` }} />
+                  </div>
+                  <p>
+                    <span className="spinner" aria-hidden="true" />
+                    {progresso.fatte + 1} di {progresso.totali} · {progresso.nome}
+                  </p>
+                </div>
               )}
             </div>
           ) : !originalUrl ? (

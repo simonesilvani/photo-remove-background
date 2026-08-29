@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { leggiZip } from './zip.js'
+import { creaZip, leggiZip } from './zip.js'
 
 // Archivi prodotti dalla stessa libreria che usa il server (zipfile di Python),
 // cosi' il lettore viene provato sui byte veri e non su un formato inventato.
@@ -30,6 +30,19 @@ describe('lettura dello ZIP', () => {
   it('assegna il tipo MIME in base all estensione', async () => {
     const dentro = await leggiZip(blobDaBase64(STORED), { png: 'image/png' })
     expect(dentro.get('a.png').type).toBe('image/png')
+  })
+
+  it('rilegge quello che ha scritto', async () => {
+    const zip = await creaZip([
+      { nome: 'a.png', blob: new Blob([new Uint8Array([1, 2, 3, 4, 5])]) },
+      { nome: 'manifest.json', blob: new Blob(['{"ok":true}']) },
+    ])
+    const dentro = await leggiZip(zip)
+    expect([...dentro.keys()].sort()).toEqual(['a.png', 'manifest.json'])
+    expect(await dentro.get('manifest.json').text()).toBe('{"ok":true}')
+    expect(new Uint8Array(await dentro.get('a.png').arrayBuffer())).toEqual(
+      new Uint8Array([1, 2, 3, 4, 5])
+    )
   })
 
   it('rifiuta un file che non e uno ZIP', async () => {

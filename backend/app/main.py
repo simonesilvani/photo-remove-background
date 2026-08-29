@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import (
@@ -23,6 +23,7 @@ from .config import (
     AVAILABLE_MODELS,
     CORS_ORIGINS,
     DEFAULT_MODEL,
+    MAX_BATCH_BYTES,
     MAX_BATCH_FILES,
     MAX_CONCURRENCY,
     MAX_IMAGE_PIXELS,
@@ -246,6 +247,7 @@ def _nome_unico(nome: str, formato: str, usati: set[str]) -> str:
 
 @app.post("/api/remove-background/batch")
 async def remove_background_batch(
+    request: Request,
     files: list[UploadFile] = File(..., description="Immagini da elaborare"),
     model: str = Form(DEFAULT_MODEL),
     alpha_matting: bool = Form(False),
@@ -267,6 +269,15 @@ async def remove_background_batch(
         raise HTTPException(
             413, f"Troppe immagini: il massimo per richiesta e' {MAX_BATCH_FILES}"
         )
+    # Il peso complessivo si controlla dall'intestazione, prima di leggere
+    # anche un solo byte del corpo.
+    dichiarato = int(request.headers.get("content-length") or 0)
+    if dichiarato > MAX_BATCH_BYTES:
+        raise HTTPException(
+            413,
+            f"Invio troppo pesante ({dichiarato // (1024 * 1024)} MB): "
+            f"il massimo per richiesta e' {MAX_BATCH_BYTES // (1024 * 1024)} MB",
+        )
 
     await _prepara_modello(model)
 
@@ -281,6 +292,12 @@ async def remove_background_batch(
     # nuovo costerebbe CPU per un guadagno nullo.
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_STORED) as zip_file:
         for file in files:
+            # Se chi ha inviato se n'e' andato, smettere di elaborare: le foto
+            # rimaste costerebbero minuti di CPU per un risultato che nessuno
+            # ricevera' mai.
+            if await request.is_disconnected():
+                logger.info("Blocco interrotto: il client si e' disconnesso")
+                break
             nome = file.filename or "immagine"
             try:
                 data = await _leggi_immagine(file)
@@ -317,10 +334,21 @@ async def remove_background_batch(
         "blocco di %d immagini: %d elaborate, %d scartate, in %.2fs",
         len(files), riusciti, len(errori), time.perf_counter() - inizio,
     )
-    return Response(
-        content=buffer.getvalue(),
+    # Lo ZIP viene spedito a pezzi dal buffer che gia' esiste: con getvalue()
+    # se ne creerebbe una seconda copia intera in memoria (191 MB su dieci foto
+    # da 12 MP in PNG).
+    dimensione = buffer.getbuffer().nbytes
+    buffer.seek(0)
+
+    def a_pezzi():
+        while pezzo := buffer.read(64 * 1024):
+            yield pezzo
+
+    return StreamingResponse(
+        a_pezzi(),
         media_type="application/zip",
         headers={
+            "Content-Length": str(dimensione),
             "Content-Disposition": 'attachment; filename="senza-sfondo.zip"',
             "X-Processed": str(riusciti),
             "X-Skipped": str(len(errori)),

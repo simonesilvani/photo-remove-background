@@ -43,6 +43,11 @@ STATIC_DIR = os.getenv(
 # scrivere le foto degli utenti su disco: il tetto serve a tenerla limitata.
 MAX_BATCH_FILES = int(os.getenv("RB_MAX_BATCH_FILES", 10))
 
+# Tetto al peso complessivo di una richiesta in blocco: il limite per singolo
+# file non basta, perche' dieci file al massimo consentito sarebbero 150 MB da
+# tenere in memoria contemporaneamente.
+MAX_BATCH_BYTES = int(os.getenv("RB_MAX_BATCH_BYTES", 60 * 1024 * 1024))
+
 # Acceleratore hardware quando disponibile (CoreML sui Mac Apple Silicon, CUDA
 # con GPU NVIDIA): misurato 1,9x sull'inferenza. RB_ACCELERATION=0 forza la CPU.
 USE_ACCELERATION = os.getenv("RB_ACCELERATION", "1") != "0"

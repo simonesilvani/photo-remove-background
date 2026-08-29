@@ -43,6 +43,12 @@ async function messaggioErrore(res) {
 // a meta' elaborazione la rotella gira per sempre.
 const TIMEOUT_MS = 180_000
 
+/** Client dell'endpoint /batch.
+ *
+ * L'interfaccia non lo usa — elabora una foto alla volta per poter mostrare
+ * l'avanzamento — ma resta qui perche' questo modulo copre tutta l'API, ed e'
+ * la via piu' comoda per chi la usa da un altro programma.
+ */
 export async function removeBackgroundBatch({
   files,
   model,

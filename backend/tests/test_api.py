@@ -217,6 +217,18 @@ def test_blocco_rifiuta_troppi_file(client, immagine, monkeypatch):
     assert "massimo" in r.json()["detail"]
 
 
+def test_blocco_rifiuta_invii_troppo_pesanti(client, immagine, monkeypatch):
+    """Il limite per singolo file non basta: dieci al massimo consentito
+    sarebbero 150 MB da tenere in memoria insieme."""
+    monkeypatch.setattr(main, "MAX_BATCH_BYTES", 100)
+    r = client.post(
+        "/api/remove-background/batch",
+        files=[("files", ("a.jpg", immagine(), "image/jpeg"))],
+    )
+    assert r.status_code == 413
+    assert "troppo pesante" in r.json()["detail"]
+
+
 def test_blocco_fallisce_se_nessuna_immagine_e_valida(client):
     r = client.post(
         "/api/remove-background/batch",

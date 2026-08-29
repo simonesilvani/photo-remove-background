@@ -161,7 +161,24 @@ body {
   white-space: nowrap;
 }
 .btn-mini:hover { border-color: var(--accent); color: var(--text); }
-.blocco__stato { display: flex; align-items: center; gap: 10px; color: var(--text-dim); margin: 0; }
+.blocco__stato { display: flex; flex-direction: column; gap: 8px; color: var(--text-dim); }
+.blocco__stato p { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 13px; }
+.barra {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.barra span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.esito { font-size: 12px; font-weight: 700; }
+.esito--ok { color: #22c55e; }
+.esito--ko { color: var(--danger); }
 
 /* --- Confronto prima/dopo --- */
 .compare {
