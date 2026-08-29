@@ -129,8 +129,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 460px;
-  overflow-y: auto;
 }
 .blocco__lista li {
   background: var(--surface-2);
@@ -145,10 +143,13 @@ body {
 .blocco__anteprima {
   display: block;
   max-width: 100%;
-  max-height: 240px;
+  /* Legata all'altezza della finestra: una foto verticale non deve occupare
+     lo schermo intero e nascondere le righe sotto. */
+  max-height: min(420px, 55vh);
   margin: 10px auto 2px;
   border-radius: 7px;
 }
+.blocco__confronto .compare__img { max-height: min(420px, 55vh); }
 .btn-mini {
   background: transparent;
   border: 1px solid var(--border);

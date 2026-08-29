@@ -66,10 +66,13 @@ export default function App() {
    * dieci foto da qualche MB, tenerle tutte decodificate costerebbe memoria
    * per immagini che l'utente magari non guarda nemmeno.
    */
-  function alternaAnteprima(chiave, file) {
+  function alternaAnteprima(chiave, file, riga) {
     setAnteprima((prev) => {
       if (prev) URL.revokeObjectURL(prev.url)
       if (prev?.chiave === chiave) return null
+      // Porta la riga in vista: aprendo l'anteprima di un file in fondo, senza
+      // questo si aprirebbe fuori dallo schermo.
+      requestAnimationFrame(() => riga?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }))
       return { chiave, url: URL.createObjectURL(file) }
     })
   }
@@ -313,7 +316,7 @@ export default function App() {
                           type="button"
                           className="btn-mini"
                           aria-expanded={aperta}
-                          onClick={() => alternaAnteprima(chiave, f)}
+                          onClick={(e) => alternaAnteprima(chiave, f, e.currentTarget.closest('li'))}
                         >
                           {aperta ? 'Nascondi' : 'Anteprima'}
                         </button>
