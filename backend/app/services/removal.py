@@ -191,12 +191,22 @@ def remove_background(
     # all'originale, cosi' il risultato mantiene la risoluzione di partenza.
     alpha = cutout.getchannel("A")
     if alpha.size != original.size:
-        alpha = alpha.resize(original.size, Image.LANCZOS)
+        # BILINEAR e non LANCZOS: su una maschera i filtri a finestra larga
+        # oscillano oltre lo 0 e il 255, e il taglio di quei valori lascia un
+        # alone lungo tutti i bordi (misurati 2.640 pixel schiacciati su una
+        # foto da 2400x1800; con BILINEAR sono zero).
+        alpha = alpha.resize(original.size, Image.BILINEAR)
 
     # putalpha su un'immagine RGB la converte in RGBA sul posto: evita di
     # duplicare l'originale (49 MB a 12 MP).
     original.putalpha(alpha)
     result = original
+
+    # Il profilo colore va portato a mano fino al salvataggio: la tela dello
+    # sfondo nasce senza, e l'encoder WEBP non lo scrive se non glielo si passa.
+    # Senza, una foto Display P3 (tutte quelle da iPhone) viene riletta come
+    # sRGB e i colori si spostano visibilmente.
+    profilo = original.info.get("icc_profile")
 
     # Il ritaglio va calcolato prima di comporre lo sfondo: dopo, l'alpha e'
     # opaca ovunque e il riquadro coinciderebbe con l'immagine intera.
@@ -211,12 +221,15 @@ def remove_background(
         result = canvas
 
     buffer = io.BytesIO()
+    opzioni = {"icc_profile": profilo} if profilo else {}
     if output_format == "webp":
         # alpha_quality=100 tiene la trasparenza senza perdita: i bordi del
         # ritaglio restano netti, la compressione agisce solo sui colori.
-        result.save(buffer, format="WEBP", quality=WEBP_QUALITY, alpha_quality=100)
+        result.save(
+            buffer, format="WEBP", quality=WEBP_QUALITY, alpha_quality=100, **opzioni
+        )
     else:
         # Niente optimize=True: su una foto da 12 MP costava 5,0 s contro gli 0,9 s
         # della compressione di default, per il 6% di byte risparmiati.
-        result.save(buffer, format="PNG")
+        result.save(buffer, format="PNG", **opzioni)
     return buffer.getvalue(), result.size

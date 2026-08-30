@@ -121,6 +121,39 @@ def test_heic_delle_foto_iphone(client, monkeypatch):
     assert load_image(buffer.getvalue()).size == (80, 60)
 
 
+def test_il_profilo_colore_sopravvive(monkeypatch):
+    """Una foto Display P3 riletta come sRGB cambia visibilmente colore."""
+    from PIL import ImageCms
+
+    from app.services import removal
+
+    profilo = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
+    sorgente = io.BytesIO()
+    Image.new("RGB", (60, 40), (200, 60, 40)).save(sorgente, format="JPEG", icc_profile=profilo)
+
+    # niente modello: il test non deve caricare 176 MB di pesi
+    monkeypatch.setattr(removal, "get_session", lambda _m: None)
+    monkeypatch.setattr(
+        removal, "remove", lambda img, **k: Image.new("RGBA", img.size, (0, 0, 0, 200))
+    )
+    for opzioni in ({}, {"background": "#ffffff"}, {"output_format": "webp"}, {"trim": True}):
+        uscita, _ = removal.remove_background(sorgente.getvalue(), "u2net", **opzioni)
+        assert Image.open(io.BytesIO(uscita)).info.get("icc_profile"), opzioni
+
+
+def test_la_maschera_si_ingrandisce_senza_aloni():
+    """I filtri a finestra larga oscillano oltre 0 e 255: il taglio di quei
+    valori lascia un contorno visibile lungo tutti i bordi del ritaglio."""
+    from PIL import Image as PILImage
+
+    maschera = PILImage.new("F", (60, 60), 0.0)
+    maschera.paste(255.0, (20, 20, 40, 40))
+    import numpy as np
+
+    grande = np.asarray(maschera.resize((480, 480), PILImage.BILINEAR))
+    assert grande.min() >= -0.01 and grande.max() <= 255.01
+
+
 def test_riquadro_del_soggetto():
     """Il ritaglio segue il soggetto e ignora gli aloni quasi invisibili."""
     from app.services.removal import riquadro_soggetto
