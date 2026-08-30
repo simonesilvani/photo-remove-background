@@ -53,6 +53,7 @@ export default function Controls({
         {current && (
           <span className="field__hint">
             {current.description}
+            {current.input_px && ` · dettaglio ${current.input_px} px`}
             {current.downloaded === false && (
               <>
                 {' '}

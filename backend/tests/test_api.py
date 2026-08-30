@@ -64,6 +64,10 @@ def test_models_dice_peso_e_stato_del_download(client):
     modelli = client.get("/api/models").json()["models"]
     assert all(isinstance(m["downloaded"], bool) for m in modelli)
     assert all(m["size_mb"] > 0 for m in modelli)
+    # la risoluzione d'ingresso e' cio' che limita il dettaglio della maschera
+    assert {m["input_px"] for m in modelli} <= {320, 1024}
+    fine = next(m for m in modelli if m["id"] == "isnet-general-use")
+    assert fine["input_px"] == 1024
     pesante = next(m for m in modelli if m["id"] == "birefnet-general")
     assert pesante["size_mb"] > 900
 

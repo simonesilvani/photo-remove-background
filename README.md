@@ -253,15 +253,26 @@ Si cambia a ogni richiesta, senza riavviare. `GET /api/models` dice quali sono g
 disco e quanto pesano quelli che mancano, così l'interfaccia avvisa prima di far partire un
 download da centinaia di MB.
 
-| Modello | Peso | Tempo | Velocità relativa | Ideale per |
-| :-- | --: | --: | :-- | :-- |
-| `u2netp` | 5 MB | **0,33 s** | `███████░░░░░░░░░░░░░` | anteprime rapide, macchine modeste |
-| `silueta` | 44 MB | **0,37 s** | `███████░░░░░░░░░░░░░` | come u2net, ¼ dello spazio |
-| `u2net` ⭐ | 176 MB | **0,53 s** | `███████████░░░░░░░░░` | default — soggetti generici |
-| `u2net_human_seg` | 176 MB | **0,50 s** | `██████████░░░░░░░░░░` | persone, ritratti, foto tessera |
-| `isnet-anime` | 176 MB | **0,97 s** | `███████████████████░` | illustrazioni, anime, artwork |
-| `isnet-general-use` | 179 MB | **1,00 s** | `████████████████████` | bordi complessi, soggetti sottili |
-| `birefnet-general` | 973 MB | non misurato | — | qualità massima, molto più lento |
+| Modello | Peso | Dettaglio | Tempo | Ideale per |
+| :-- | --: | --: | --: | :-- |
+| `u2netp` | 5 MB | 320 px | **0,33 s** | anteprime rapide, macchine modeste |
+| `silueta` | 44 MB | 320 px | **0,37 s** | come u2net, ¼ dello spazio |
+| `u2net` ⭐ | 176 MB | 320 px | **0,53 s** | default — soggetti generici |
+| `u2net_human_seg` | 176 MB | 320 px | **0,50 s** | persone, ritratti, foto tessera |
+| `isnet-anime` | 176 MB | 1024 px | **0,97 s** | illustrazioni, anime, artwork |
+| `isnet-general-use` | 179 MB | **1024 px** | **1,00 s** | capelli, rami, oggetti sottili |
+| `birefnet-general` | 973 MB | 1024 px | non misurato | qualità massima, molto più lento |
+
+**La colonna "dettaglio" è quella che conta sui contorni fini.** È la risoluzione a cui la
+rete guarda l'immagine: a 320 px una ciocca di capelli semplicemente non esiste. Sulla stessa
+foto con 200 ciocche sottili, `u2net` risolve 10.636 pixel di ciocca, `isnet-general-use`
+**365.599** — trentaquattro volte tanto, per il 46% di tempo in più.
+
+> [!NOTE]
+> Alzare la risoluzione della copia di lavoro **non aiuta**: la rete ridimensiona comunque
+> al proprio ingresso. Misurato, passare da 2000 a 4000 px cambia lo 0,09% dei pixel della
+> maschera e con l'alpha matting triplica il tempo per lo 0,10%. Se servono contorni più
+> fini, si cambia modello, non risoluzione.
 
 <sub>Apple M3 Pro · CPU · immagine 1920×1280 con texture · mediana di 3 esecuzioni dopo il
 warm-up. L'alpha matting serve su capelli, pelo e tessuti sottili; sui bordi netti non

@@ -4,15 +4,20 @@ import pathlib
 
 DEFAULT_MODEL = os.getenv("RB_DEFAULT_MODEL", "u2net")
 
-# id -> (descrizione, peso in MB da scaricare al primo utilizzo)
+# id -> (descrizione, peso in MB da scaricare, lato dell'ingresso del modello)
+#
+# Il terzo valore e' la risoluzione a cui la rete guarda l'immagine, ed e' cio'
+# che limita il dettaglio della maschera: a 320 px una ciocca di capelli non
+# esiste proprio. Alzare la copia di lavoro non aiuta — la rete ridimensiona
+# comunque al proprio ingresso — mentre passare a un modello da 1024 px si.
 AVAILABLE_MODELS = {
-    "u2net": ("Generico, buon compromesso qualita'/velocita'", 176),
-    "u2netp": ("Versione leggera di u2net, piu' veloce", 5),
-    "u2net_human_seg": ("Ottimizzato per persone", 176),
-    "isnet-general-use": ("Generico, bordi piu' precisi", 179),
-    "isnet-anime": ("Illustrazioni e anime", 176),
-    "silueta": ("u2net compresso, stessa resa", 44),
-    "birefnet-general": ("Qualita' massima, molto piu' lento", 973),
+    "u2net": ("Generico, buon compromesso qualita'/velocita'", 176, 320),
+    "u2netp": ("Versione leggera di u2net, piu' veloce", 5, 320),
+    "u2net_human_seg": ("Ottimizzato per persone", 176, 320),
+    "isnet-general-use": ("Dettagli fini: capelli, rami, oggetti sottili", 179, 1024),
+    "isnet-anime": ("Illustrazioni e anime", 176, 1024),
+    "silueta": ("u2net compresso, stessa resa", 44, 320),
+    "birefnet-general": ("Qualita' massima, molto piu' lento", 973, 1024),
 }
 
 MAX_UPLOAD_BYTES = int(os.getenv("RB_MAX_UPLOAD_BYTES", 15 * 1024 * 1024))

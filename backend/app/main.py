@@ -154,9 +154,10 @@ async def models():
                 "id": nome,
                 "description": descrizione,
                 "size_mb": peso,
+                "input_px": ingresso,
                 "downloaded": modello_scaricato(nome),
             }
-            for nome, (descrizione, peso) in AVAILABLE_MODELS.items()
+            for nome, (descrizione, peso, ingresso) in AVAILABLE_MODELS.items()
         ],
     }
 
