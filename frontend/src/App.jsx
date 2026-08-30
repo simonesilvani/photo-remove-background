@@ -22,7 +22,7 @@ export default function App() {
   const [anteprima, setAnteprima] = useState(null)
   const [risultatiBlocco, setRisultatiBlocco] = useState(new Map())
   const [progresso, setProgresso] = useState(null)
-  const [scarti, setScarti] = useState([])
+  const [scarti, setScarti] = useState(new Map())
   const maxBytesRef = useRef(MAX_BYTES_DEFAULT)
   const [bgPreset, setBgPreset] = useState('transparent')
   const [customColor, setCustomColor] = useState('#4f46e5')
@@ -100,7 +100,7 @@ export default function App() {
 
     chiudiAnteprima()
     scartaRisultatiBlocco()
-    setScarti([])
+    setScarti(new Map())
     setProgresso(null)
     const { pronti, problemi } = await preparaFiles(files, { maxBytes: maxBytesRef.current })
     if (!pronti.length) {
@@ -109,7 +109,10 @@ export default function App() {
     }
     setError(problemi.length ? `${problemi.length} scartate — ${problemi.join(' · ')}` : null)
     setResult(null)
-    setBlocco(pronti)
+    // Identita' propria per ogni file: due foto possono chiamarsi allo stesso
+    // modo (capita prendendole da cartelle diverse) e il nome non basta a
+    // distinguerle, ne' come chiave di React ne' per ritrovarne il risultato.
+    setBlocco(pronti.map((file) => ({ id: crypto.randomUUID(), file })))
     setFile(null)
     setOriginalUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -164,12 +167,12 @@ export default function App() {
         // comunque in sequenza, ma cosi' l'utente vede a che punto siamo e i
         // singoli risultati sono disponibili appena pronti.
         const fatti = new Map()
-        const problemi = []
-        for (const [i, f] of blocco.entries()) {
-          setProgresso({ fatte: i, totali: blocco.length, nome: f.name })
+        const problemi = new Map()
+        for (const [i, { id, file }] of blocco.entries()) {
+          setProgresso({ fatte: i, totali: blocco.length, nome: file.name })
           try {
             const esito = await removeBackground({
-              file: f,
+              file,
               model,
               alphaMatting,
               background: backgroundValue(),
@@ -177,22 +180,23 @@ export default function App() {
               trim,
               signal: controller.signal,
             })
-            fatti.set(f.name, esito)
+            fatti.set(id, esito)
           } catch (err) {
             if (err.name === 'AbortError') return
-            problemi.push(`${f.name}: ${err.message}`)
+            problemi.set(id, `${file.name}: ${err.message}`)
           }
         }
         setProgresso(null)
         setScarti(problemi)
         if (!fatti.size) {
-          setError(problemi.join(' · ') || 'Nessuna immagine elaborata')
+          setError([...problemi.values()].join(' · ') || 'Nessuna immagine elaborata')
           return
         }
 
         const usati = new Set()
-        const voci = [...fatti].map(([nome, esito]) => ({
-          nome: nomeVoceZip(nome, formato, usati),
+        const nomePerId = new Map(blocco.map(({ id, file }) => [id, file.name]))
+        const voci = [...fatti].map(([id, esito]) => ({
+          nome: nomeVoceZip(nomePerId.get(id), formato, usati),
           blob: esito.blob,
         }))
         const zip = await creaZip(voci)
@@ -203,12 +207,12 @@ export default function App() {
             zip: true,
             formato,
             elaborate: fatti.size,
-            scartate: problemi.length,
+            scartate: problemi.size,
           }
         })
         setRisultatiBlocco((prev) => {
           for (const url of prev.values()) URL.revokeObjectURL(url)
-          return new Map([...fatti].map(([nome, esito]) => [nome, esito.url]))
+          return new Map([...fatti].map(([id, esito]) => [id, esito.url]))
         })
         return
       }
@@ -253,7 +257,7 @@ export default function App() {
     abortRef.current?.abort()
     chiudiAnteprima()
     scartaRisultatiBlocco()
-    setScarti([])
+    setScarti(new Map())
     setProgresso(null)
     setBlocco([])
     setFile(null)
@@ -296,19 +300,18 @@ export default function App() {
                 {result?.scartate ? `, ${result.scartate} scartate` : ''}
               </p>
               <ul className="blocco__lista">
-                {blocco.map((f) => {
-                  const chiave = f.name + f.size
-                  const aperta = anteprima?.chiave === chiave
+                {blocco.map(({ id, file }) => {
+                  const aperta = anteprima?.chiave === id
+                  const risultato = risultatiBlocco.get(id)
+                  const scarto = scarti.get(id)
                   return (
-                    <li key={chiave}>
+                    <li key={id}>
                       <div className="blocco__riga">
-                        <span className="filename">{f.name}</span>
-                        <span className="badge">{Math.round(f.size / 1024)} KB</span>
-                        {risultatiBlocco.has(f.name) && (
-                          <span className="esito esito--ok" title="Elaborata">✓</span>
-                        )}
-                        {scarti.some((p) => p.startsWith(`${f.name}:`)) && (
-                          <span className="esito esito--ko" title={scarti.find((p) => p.startsWith(`${f.name}:`))}>
+                        <span className="filename">{file.name}</span>
+                        <span className="badge">{Math.round(file.size / 1024)} KB</span>
+                        {risultato && <span className="esito esito--ok" title="Elaborata">✓</span>}
+                        {scarto && (
+                          <span className="esito esito--ko" title={scarto}>
                             ✕
                           </span>
                         )}
@@ -316,17 +319,17 @@ export default function App() {
                           type="button"
                           className="btn-mini"
                           aria-expanded={aperta}
-                          onClick={(e) => alternaAnteprima(chiave, f, e.currentTarget.closest('li'))}
+                          onClick={(e) => alternaAnteprima(id, file, e.currentTarget.closest('li'))}
                         >
                           {aperta ? 'Nascondi' : 'Anteprima'}
                         </button>
                       </div>
                       {aperta &&
-                        (risultatiBlocco.get(f.name) ? (
+                        (risultato ? (
                           <div className="blocco__confronto">
                             <CompareSlider
                               before={anteprima.url}
-                              after={risultatiBlocco.get(f.name)}
+                              after={risultato}
                               checkerboard={bgPreset === 'transparent'}
                             />
                           </div>
@@ -334,7 +337,7 @@ export default function App() {
                           <img
                             className="blocco__anteprima"
                             src={anteprima.url}
-                            alt={`Anteprima di ${f.name}`}
+                            alt={`Anteprima di ${file.name}`}
                           />
                         ))}
                     </li>
