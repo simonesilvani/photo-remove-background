@@ -16,6 +16,7 @@ from rembg import new_session, remove
 from rembg.sessions import sessions_class
 
 from ..config import (
+    CLEAR_INVISIBLE,
     MAX_IMAGE_PIXELS,
     MAX_INFERENCE_SIDE,
     USE_ACCELERATION,
@@ -201,6 +202,13 @@ def remove_background(
     # duplicare l'originale (49 MB a 12 MP).
     original.putalpha(alpha)
     result = original
+
+    # Sotto i pixel invisibili resterebbe lo sfondo originale, intatto e
+    # recuperabile rimettendo l'opacita' a 255: azzerarlo lo elimina davvero,
+    # e alleggerisce molto il file senza toccare un pixel visibile.
+    if CLEAR_INVISIBLE:
+        invisibili = alpha.point(lambda v: 255 if v == 0 else 0)
+        result.paste((0, 0, 0, 0), mask=invisibili)
 
     # Il profilo colore va portato a mano fino al salvataggio: la tela dello
     # sfondo nasce senza, e l'encoder WEBP non lo scrive se non glielo si passa.

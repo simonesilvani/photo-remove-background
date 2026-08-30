@@ -35,7 +35,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | 🗂️ **Ne fai dieci insieme** | Avanzamento immagine per immagine, ZIP alla fine, e un file rotto non blocca gli altri |
 | 🎨 **Scegli lo sfondo** | Trasparente, oppure un colore pieno su cui comporre il soggetto |
 | ✂️ **Tagli i margini vuoti** | Un soggetto piccolo in una foto grande esce 364×383 invece di 2000×1500 |
-| 📦 **Scegli il peso** | Lo stesso ritaglio pesa **18,8 MB in PNG e 0,36 in WEBP**, con la trasparenza intatta |
+| 📦 **Scegli il peso** | Lo stesso ritaglio pesa **1,3 MB in PNG e 0,15 in WEBP**, con la trasparenza intatta |
 | 📋 **Te lo porti via** | Download o copia diretta negli appunti, senza passare dal disco |
 
 ### Come si comporta sotto
@@ -177,22 +177,22 @@ meno che linearmente** con i megapixel: a scalare è il lavoro sui pixel, non l'
 
 | Risoluzione | Megapixel | Tempo | PNG in uscita |
 | :-- | --: | --: | --: |
-| 800 × 533 | 0,4 MP | **0,32 s** | 0,5 MB |
-| 1920 × 1280 | 2,5 MP | **0,51 s** | 3,1 MB |
-| 3024 × 4032 | 12,2 MP | **1,22 s** | 15,1 MB |
-| 6000 × 4000 | 24,0 MP | **1,99 s** | 29,6 MB |
+| 800 × 533 | 0,4 MP | **0,11 s** | 2 KB |
+| 1920 × 1280 | 2,5 MP | **0,20 s** | 17 KB |
+| 3024 × 4032 | 12,2 MP | **0,48 s** | 1,3 MB |
+| 6000 × 4000 | 24,0 MP | **0,67 s** | 2,0 MB |
 
 ```mermaid
 xychart-beta
     title "Tempo di elaborazione vs megapixel (u2net, Apple M3 Pro)"
     x-axis "Megapixel" [0.4, 2.5, 12.2, 24.0]
-    y-axis "Secondi" 0 --> 2.5
-    bar [0.32, 0.51, 1.22, 1.99]
-    line [0.32, 0.51, 1.22, 1.99]
+    y-axis "Secondi" 0 --> 1
+    bar [0.11, 0.20, 0.48, 0.67]
+    line [0.11, 0.20, 0.48, 0.67]
 ```
 
-<sub>Immagini sintetiche ad alto dettaglio, il caso peggiore per la codifica PNG — che resta
-la voce di costo dominante: l'inferenza è ~0,4 s a qualsiasi risoluzione.</sub>
+<sub>Immagini sintetiche ad alto dettaglio, il caso peggiore per la codifica. I file sono
+piccoli perché sotto i pixel trasparenti non resta nulla da comprimere: vedi sotto.</sub>
 
 ### Quanto costa ogni opzione
 
@@ -200,19 +200,37 @@ Sulla stessa foto da 12 MP, rispetto al comportamento predefinito:
 
 | Opzione | Effetto sul tempo | Effetto sul file |
 | :-- | :-- | :-- |
-| **Formato WEBP** | 1,40 s → **1,03 s** | 18,8 MB → **0,36 MB** |
-| **Ritaglio ai bordi** (`trim`) | trascurabile | 2000×1500 → 364×383, 69 KB → 48 KB |
+| **Formato WEBP** | 0,48 s → 0,82 s | 1,30 MB → **0,15 MB** |
+| **Ritaglio ai bordi** (`trim`) | trascurabile | taglia i margini vuoti attorno al soggetto |
 | **Alpha matting** | 0,53 s → **1,07 s** | invariato |
-| **Acceleratore CoreML** | 1,03 s → **0,84 s** | invariato |
+| **Acceleratore CoreML** | inferenza 0,40 s → **0,21 s** | invariato |
 
-Il WEBP non è un compromesso al ribasso: il canale alpha resta **identico bit per bit** e
-sui pixel visibili la differenza di colore è di 0,33 su 255, invisibile. Il PNG resta il
-default solo perché è senza perdita e lo apre qualunque programma.
+Il WEBP resta otto volte più leggero, ma **non più veloce**: da quando i pixel invisibili
+vengono azzerati, il PNG ha pochissimo da comprimere e la codifica è la metà. Quando conta
+il peso — un blocco da dieci foto occupa 10,5 MB in PNG e 1,5 in WEBP — la scelta resta il
+WEBP, che sui pixel visibili differisce di 0,33 su 255 e tiene il canale alpha identico bit
+per bit.
 
 > [!IMPORTANT]
 > CoreML si paga in memoria: **881 MB a riposo contro 414 MB** su CPU, il doppio abbondante
 > per guadagnare 0,25 s a immagine. Con poca RAM, o quando conta quanti processi ci stanno,
 > conviene `RB_ACCELERATION=0`. Nei contenitori Linux la scelta non si pone.
+
+### Sotto la trasparenza non resta niente
+
+In un PNG anche i pixel invisibili hanno un colore. Lasciandoci lo sfondo originale — come
+fa la maggior parte degli strumenti — quel colore **è ancora nel file**: basta rimettere
+l'opacità a 255 per rivedere la stanza da cui hai ritagliato il soggetto. Qui viene azzerato:
+
+| | File PNG | Tempo |
+| :-- | --: | --: |
+| Con lo sfondo lasciato sotto | 19,17 MB | 1,24 s |
+| Azzerato (predefinito) | **1,21 MB** | **0,46 s** |
+
+Quindici volte più leggero e la metà del tempo, senza toccare un solo pixel visibile: la
+compressione lavora su una distesa uniforme invece che su una fotografia. Si disattiva con
+`RB_CLEAR_INVISIBLE=0`, utile solo se usi il ritaglio come texture in programmi che
+ignorano il canale alpha.
 
 ### Quale modello
 
@@ -324,7 +342,7 @@ Dentro lo ZIP c'è anche un `manifest.json` che lega ogni risultato alla foto di
 permette all'interfaccia di mostrare il confronto prima/dopo di ogni immagine.
 
 Lo ZIP viene composto in memoria, quindi il formato scelto pesa: dieci foto da 12 MP in
-PNG producono un archivio da **191 MB**, le stesse in WEBP circa **4 MB**. Per questo
+PNG producono un archivio da **10,5 MB**, le stesse in WEBP **1,5 MB**. Per questo
 esiste `RB_MAX_BATCH_BYTES` oltre al limite per singolo file. Se chi ha inviato chiude la
 pagina a metà, l'elaborazione si ferma invece di continuare a consumare CPU per un
 risultato che nessuno riceverà.
@@ -356,6 +374,7 @@ Il backend si configura con variabili d'ambiente, nessun file di config da modif
 | `RB_MAX_BATCH_BYTES` | `62914560` | peso complessivo di una richiesta in blocco (60 MB) |
 | `RB_STATIC_DIR` | `frontend/dist` | frontend compilato da servire; se assente, l'API risponde da sola |
 | `RB_WEBP_QUALITY` | `92` | qualità del WEBP (la trasparenza resta senza perdita) |
+| `RB_CLEAR_INVISIBLE` | `1` | azzera i colori sotto i pixel trasparenti; `0` li lascia |
 | `RB_ACCELERATION` | `1` | usa CoreML o CUDA se presenti; `0` forza la CPU |
 | `RB_MAX_INFERENCE_SIDE` | `2000` | lato lungo massimo dato in pasto al modello |
 | `RB_MAX_CONCURRENCY` | `2` | inferenze simultanee: è il tetto al consumo di RAM |
@@ -448,6 +467,9 @@ conservata**. Nel dettaglio, verificato con `lsof` su una richiesta reale:
 Quel file temporaneo è **unlinked**: non compare elencando la cartella, non ha un nome
 raggiungibile da altri processi e sparisce a fine richiesta — anche se il server venisse
 ucciso a metà, lo spazio viene recuperato alla chiusura del processo.
+
+Nel file che scarichi non resta traccia dello sfondo rimosso: i pixel invisibili vengono
+azzerati, quindi nessuno può recuperarlo rimettendo l'opacità.
 
 Il log registra **nome e dimensioni** del file, mai il contenuto:
 `INFO foto.jpg (3024x4032) elaborata con u2net in 1.22s`.

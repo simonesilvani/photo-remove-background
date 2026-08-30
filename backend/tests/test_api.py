@@ -121,6 +121,29 @@ def test_heic_delle_foto_iphone(client, monkeypatch):
     assert load_image(buffer.getvalue()).size == (80, 60)
 
 
+def test_sotto_i_pixel_trasparenti_non_resta_lo_sfondo(monkeypatch):
+    """In un PNG i pixel invisibili hanno comunque un colore: se ci resta lo
+    sfondo originale, basta rimettere l'opacità a 255 per rivederlo."""
+    from app.services import removal
+
+    sorgente = io.BytesIO()
+    Image.new("RGB", (40, 40), (18, 220, 60)).save(sorgente, format="PNG")
+
+    def maschera(img, **kwargs):
+        fuori = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        fuori.paste((0, 0, 0, 255), (10, 10, 30, 30))
+        return fuori
+
+    monkeypatch.setattr(removal, "get_session", lambda _m: None)
+    monkeypatch.setattr(removal, "remove", maschera)
+    uscita, _ = removal.remove_background(sorgente.getvalue(), "u2net")
+
+    pixel = Image.open(io.BytesIO(uscita)).convert("RGBA").load()
+    assert pixel[2, 2][3] == 0, "il pixel d'angolo doveva restare trasparente"
+    assert pixel[2, 2][:3] == (0, 0, 0), "sotto la trasparenza c'e' ancora lo sfondo"
+    assert pixel[20, 20][:3] == (18, 220, 60), "il soggetto non deve essere toccato"
+
+
 def test_il_profilo_colore_sopravvive(monkeypatch):
     """Una foto Display P3 riletta come sRGB cambia visibilmente colore."""
     from PIL import ImageCms

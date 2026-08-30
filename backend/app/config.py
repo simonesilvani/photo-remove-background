@@ -52,6 +52,11 @@ MAX_BATCH_BYTES = int(os.getenv("RB_MAX_BATCH_BYTES", 60 * 1024 * 1024))
 # con GPU NVIDIA): misurato 1,9x sull'inferenza. RB_ACCELERATION=0 forza la CPU.
 USE_ACCELERATION = os.getenv("RB_ACCELERATION", "1") != "0"
 
+# Azzera i colori sotto i pixel completamente trasparenti. Senza, lo sfondo
+# "rimosso" resta dentro il file — basta rimettere alpha a 255 per rivederlo — e
+# il PNG pesa molto di piu'. RB_CLEAR_INVISIBLE=0 lo disattiva.
+CLEAR_INVISIBLE = os.getenv("RB_CLEAR_INVISIBLE", "1") != "0"
+
 # Formati di uscita. Il PNG e' senza perdita e universale, il WEBP produce file
 # ~40 volte piu' leggeri in meta' del tempo: la trasparenza resta comunque senza
 # perdita, la compressione agisce solo sui colori.
