@@ -97,6 +97,7 @@ def test_formato_di_uscita(client, immagine, monkeypatch, formato, tipo):
         ({"model": "inesistente"}, 400, "Modello non supportato"),
         ({"background": "non-un-colore"}, 400, "Colore non valido"),
         ({"format": "gif"}, 400, "Formato di uscita non supportato"),
+        ({"edges": "morbidissimi"}, 400, "Trattamento dei bordi non supportato"),
     ],
 )
 def test_parametri_non_validi(client, immagine, campi, atteso, frammento):
@@ -119,6 +120,60 @@ def test_heic_delle_foto_iphone(client, monkeypatch):
     from app.services.removal import load_image
 
     assert load_image(buffer.getvalue()).size == (80, 60)
+
+
+def test_i_tre_livelli_di_bordo_chiedono_cose_diverse(monkeypatch):
+    """I livelli sono gradini della stessa scala: `soft` smette di squadrare la
+    maschera e toglie l'alone, `max` aggiunge l'alpha matting."""
+    from app.services import removal
+
+    ricevuti = {}
+
+    def finto(img, **kwargs):
+        ricevuti.update(kwargs)
+        return Image.new("RGBA", img.size, (0, 0, 0, 255))
+
+    sorgente = io.BytesIO()
+    Image.new("RGB", (40, 40), (10, 200, 10)).save(sorgente, format="PNG")
+    monkeypatch.setattr(removal, "get_session", lambda _m: None)
+    monkeypatch.setattr(removal, "remove", finto)
+
+    removal.remove_background(sorgente.getvalue(), "u2net", edges="soft")
+    assert (ricevuti["post_process_mask"], ricevuti["decontaminate"], ricevuti["alpha_matting"]) == (
+        False, True, False,
+    )
+
+    removal.remove_background(sorgente.getvalue(), "u2net", edges="max")
+    assert ricevuti["alpha_matting"] is True
+    assert ricevuti["post_process_mask"] is False
+
+    removal.remove_background(sorgente.getvalue(), "u2net")
+    assert (ricevuti["post_process_mask"], ricevuti["decontaminate"], ricevuti["alpha_matting"]) == (
+        True, False, False,
+    )
+
+
+def test_sui_bordi_sfumati_i_colori_arrivano_dalla_stima(monkeypatch):
+    """Il colore dei pixel misti deve venire dal ritaglio, dove l'alone e' gia'
+    stato tolto, non dall'originale che lo contiene ancora."""
+    from app.services import removal
+
+    sorgente = io.BytesIO()
+    Image.new("RGB", (20, 20), (0, 255, 0)).save(sorgente, format="PNG")  # tutto verde
+
+    def finto(img, **kwargs):
+        # ritaglio con colori "puliti" (rosso) e una fascia semitrasparente
+        fuori = Image.new("RGBA", img.size, (255, 0, 0, 255))
+        fuori.putalpha(Image.new("L", img.size, 128))
+        return fuori
+
+    monkeypatch.setattr(removal, "get_session", lambda _m: None)
+    monkeypatch.setattr(removal, "remove", finto)
+    uscita, _ = removal.remove_background(sorgente.getvalue(), "u2net", edges="soft")
+
+    pixel = Image.open(io.BytesIO(uscita)).convert("RGBA").load()[10, 10]
+    assert pixel[3] == 128, "la sfumatura deve sopravvivere"
+    assert pixel[0] > 200 and pixel[1] < 60, f"colore preso dall'originale verde: {pixel}"
 
 
 def test_sotto_i_pixel_trasparenti_non_resta_lo_sfondo(monkeypatch):
@@ -341,9 +396,9 @@ def test_il_detail_e_sempre_una_stringa(client, immagine):
     assert senza_file.status_code == 422
     assert isinstance(senza_file.json()["detail"], str)
 
-    booleano_sbagliato = upload(client, immagine(), alpha_matting="forse")
+    booleano_sbagliato = upload(client, immagine(), trim="forse")
     assert booleano_sbagliato.status_code == 422
-    assert "alpha_matting" in booleano_sbagliato.json()["detail"]
+    assert "trim" in booleano_sbagliato.json()["detail"]
 
 
 def test_i_log_non_contengono_il_nome_del_file(client, immagine, monkeypatch, caplog):

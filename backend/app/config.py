@@ -52,6 +52,16 @@ MAX_BATCH_BYTES = int(os.getenv("RB_MAX_BATCH_BYTES", 60 * 1024 * 1024))
 # con GPU NVIDIA): misurato 1,9x sull'inferenza. RB_ACCELERATION=0 forza la CPU.
 USE_ACCELERATION = os.getenv("RB_ACCELERATION", "1") != "0"
 
+# Come vengono trattati i bordi del ritaglio, dal piu' veloce al piu' curato.
+# Sono gradini della stessa scala, non interruttori indipendenti: ogni livello
+# comprende quello precedente.
+EDGE_MODES = {
+    "hard": "Bordi netti, i piu' rapidi: la maschera viene squadrata",
+    "soft": "Bordi sfumati e senza alone del vecchio sfondo",
+    "max": "Massima qualita' su capelli e pelo (alpha matting)",
+}
+DEFAULT_EDGES = os.getenv("RB_DEFAULT_EDGES", "hard")
+
 # Azzera i colori sotto i pixel completamente trasparenti. Senza, lo sfondo
 # "rimosso" resta dentro il file — basta rimettere alpha a 255 per rivederlo — e
 # il PNG pesa molto di piu'. RB_CLEAR_INVISIBLE=0 lo disattiva.

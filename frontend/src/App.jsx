@@ -13,7 +13,7 @@ const MAX_BYTES_DEFAULT = 15 * 1024 * 1024
 export default function App() {
   const [models, setModels] = useState([])
   const [model, setModel] = useState('u2net')
-  const [alphaMatting, setAlphaMatting] = useState(false)
+  const [bordi, setBordi] = useState('hard')
   const [formato, setFormato] = useState('png')
   const [trim, setTrim] = useState(false)
   const [maxBytes, setMaxBytes] = useState(MAX_BYTES_DEFAULT)
@@ -174,7 +174,7 @@ export default function App() {
             const esito = await removeBackground({
               file,
               model,
-              alphaMatting,
+              bordi,
               background: backgroundValue(),
               formato,
               trim,
@@ -219,7 +219,7 @@ export default function App() {
       const next = await removeBackground({
         file,
         model,
-        alphaMatting,
+        bordi,
         background: backgroundValue(),
         formato,
         trim,
@@ -401,8 +401,8 @@ export default function App() {
             onModelChange={setModel}
             formato={formato}
             onFormatoChange={setFormato}
-            alphaMatting={alphaMatting}
-            onAlphaMattingChange={setAlphaMatting}
+            bordi={bordi}
+            onBordiChange={setBordi}
             trim={trim}
             onTrimChange={setTrim}
             bgPreset={bgPreset}

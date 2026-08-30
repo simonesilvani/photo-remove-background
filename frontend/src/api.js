@@ -52,7 +52,7 @@ const TIMEOUT_MS = 180_000
 export async function removeBackgroundBatch({
   files,
   model,
-  alphaMatting,
+  bordi,
   background,
   formato,
   trim,
@@ -62,7 +62,7 @@ export async function removeBackgroundBatch({
   const form = new FormData()
   for (const file of files) form.append('files', file)
   form.append('model', model)
-  form.append('alpha_matting', String(alphaMatting))
+  form.append('edges', bordi)
   form.append('format', formato)
   form.append('trim', String(Boolean(trim)))
   if (background) form.append('background', background)
@@ -95,7 +95,7 @@ export async function removeBackgroundBatch({
 export async function removeBackground({
   file,
   model,
-  alphaMatting,
+  bordi,
   background,
   formato,
   trim,
@@ -105,7 +105,7 @@ export async function removeBackground({
   const form = new FormData()
   form.append('file', file)
   form.append('model', model)
-  form.append('alpha_matting', String(alphaMatting))
+  form.append('edges', bordi)
   form.append('format', formato)
   form.append('trim', String(Boolean(trim)))
   if (background) form.append('background', background)

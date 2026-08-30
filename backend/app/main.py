@@ -21,6 +21,8 @@ from .config import (
     ALLOWED_CONTENT_TYPES,
     ALLOWED_OUTPUT_FORMATS,
     AVAILABLE_MODELS,
+    DEFAULT_EDGES,
+    EDGE_MODES,
     CORS_ORIGINS,
     DEFAULT_MODEL,
     MAX_BATCH_BYTES,
@@ -159,8 +161,10 @@ async def models():
     }
 
 
-def _valida_opzioni(model: str, format: str, background: str | None) -> tuple[str, str | None]:
-    """Controlla le opzioni comuni ai due endpoint. Restituisce (formato, sfondo)."""
+def _valida_opzioni(
+    model: str, format: str, background: str | None, edges: str = DEFAULT_EDGES
+) -> tuple[str, str | None, str]:
+    """Controlla le opzioni comuni ai due endpoint."""
     if model not in AVAILABLE_MODELS:
         raise HTTPException(400, f"Modello non supportato: {model}")
 
@@ -178,7 +182,15 @@ def _valida_opzioni(model: str, format: str, background: str | None) -> tuple[st
             hex_to_rgba(bg)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
-    return formato, bg
+
+    modo = edges.lower()
+    if modo not in EDGE_MODES:
+        raise HTTPException(
+            400,
+            f"Trattamento dei bordi non supportato: {edges}. "
+            f"Ammessi: {', '.join(EDGE_MODES)}",
+        )
+    return formato, bg, modo
 
 
 async def _leggi_immagine(file: UploadFile) -> bytes:
@@ -250,7 +262,7 @@ async def remove_background_batch(
     request: Request,
     files: list[UploadFile] = File(..., description="Immagini da elaborare"),
     model: str = Form(DEFAULT_MODEL),
-    alpha_matting: bool = Form(False),
+    edges: str = Form(DEFAULT_EDGES),
     background: str | None = Form(None),
     format: str = Form("png"),
     trim: bool = Form(False),
@@ -262,7 +274,7 @@ async def remove_background_batch(
     una foto e l'altra. Un file che fallisce non annulla il resto: finisce in
     `errori.txt` dentro lo ZIP.
     """
-    formato, bg = _valida_opzioni(model, format, background)
+    formato, bg, modo_bordi = _valida_opzioni(model, format, background, edges)
     if not files:
         raise HTTPException(400, "Nessun file caricato")
     if len(files) > MAX_BATCH_FILES:
@@ -304,7 +316,7 @@ async def remove_background_batch(
                 png, _size, _attesa = await _elabora(
                     data,
                     model,
-                    alpha_matting=alpha_matting,
+                    edges=modo_bordi,
                     background=bg,
                     output_format=formato,
                     trim=trim,
@@ -361,13 +373,13 @@ async def remove_background_batch(
 async def remove_background_endpoint(
     file: UploadFile = File(..., description="Immagine da elaborare"),
     model: str = Form(DEFAULT_MODEL),
-    alpha_matting: bool = Form(False),
+    edges: str = Form(DEFAULT_EDGES),
     background: str | None = Form(None),
     format: str = Form("png"),
     trim: bool = Form(False),
 ):
     """Restituisce l'immagine con lo sfondo rimosso, in PNG o WEBP."""
-    formato, bg = _valida_opzioni(model, format, background)
+    formato, bg, modo_bordi = _valida_opzioni(model, format, background, edges)
     data = await _leggi_immagine(file)
     await _prepara_modello(model)
 
@@ -375,7 +387,7 @@ async def remove_background_endpoint(
     png, size, waited = await _elabora(
         data,
         model,
-        alpha_matting=alpha_matting,
+        edges=modo_bordi,
         background=bg,
         output_format=formato,
         trim=trim,

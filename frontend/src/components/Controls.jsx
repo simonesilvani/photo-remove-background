@@ -5,6 +5,12 @@ const PRESETS = [
   { id: 'custom', label: 'Personalizzato', value: null, swatch: null },
 ]
 
+const BORDI = [
+  { id: 'hard', label: 'Netti', hint: 'i più rapidi, contorni squadrati' },
+  { id: 'soft', label: 'Morbidi', hint: 'sfumati e senza alone del vecchio sfondo' },
+  { id: 'max', label: 'Massima qualità', hint: 'meglio su capelli e pelo, più lento' },
+]
+
 const FORMATI = [
   { id: 'png', label: 'PNG', hint: 'senza perdita, compatibile ovunque' },
   { id: 'webp', label: 'WEBP', hint: 'stessa resa, file fino a 50 volte piu\u2019 leggero' },
@@ -16,8 +22,8 @@ export default function Controls({
   onModelChange,
   formato,
   onFormatoChange,
-  alphaMatting,
-  onAlphaMattingChange,
+  bordi,
+  onBordiChange,
   trim,
   onTrimChange,
   bgPreset,
@@ -115,18 +121,31 @@ export default function Controls({
         </span>
       </label>
 
+      <label className="field">
+        <span className="field__label">Bordi</span>
+        <select value={bordi} disabled={disabled} onChange={(e) => onBordiChange(e.target.value)}>
+          {BORDI.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.label}
+            </option>
+          ))}
+        </select>
+        <span className="field__hint">{BORDI.find((b) => b.id === bordi)?.hint}</span>
+      </label>
+
       <label className="field field--inline">
         <input
           type="checkbox"
-          checked={alphaMatting}
+          checked={trim}
           disabled={disabled}
-          onChange={(e) => onAlphaMattingChange(e.target.checked)}
+          onChange={(e) => onTrimChange(e.target.checked)}
         />
         <span>
-          <span className="field__label">Alpha matting</span>
-          <span className="field__hint">Bordi piu' morbidi (capelli, pelo) — piu' lento</span>
+          <span className="field__label">Ritaglia ai bordi</span>
+          <span className="field__hint">Elimina i margini trasparenti attorno al soggetto</span>
         </span>
       </label>
+
     </div>
   )
 }

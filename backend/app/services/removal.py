@@ -162,7 +162,7 @@ def remove_background(
     data: bytes,
     model: str,
     *,
-    alpha_matting: bool = False,
+    edges: str = "hard",
     post_process: bool = True,
     background: Optional[str] = None,
     output_format: str = "png",
@@ -174,15 +174,22 @@ def remove_background(
     resta trasparente, altrimenti il soggetto viene composto su quel colore.
     Con `trim` il risultato viene ritagliato al riquadro del soggetto, togliendo
     i margini trasparenti che altrimenti pesano su file e tempi.
+
+    `edges` sceglie come trattare i contorni: "hard" li squadra (piu' rapido),
+    "soft" li lascia sfumati stimando il colore reale sotto i pixel misti — che
+    altrimenti conservano un velo del vecchio sfondo — e "max" usa l'alpha
+    matting, piu' lento ma migliore su capelli e pelo.
     """
+    morbidi = edges in {"soft", "max"}
     original = load_image(data)
     working = _scaled_for_inference(original)
 
     cutout = remove(
         working,
         session=get_session(model),
-        alpha_matting=alpha_matting,
-        post_process_mask=post_process,
+        alpha_matting=edges == "max",
+        post_process_mask=post_process and not morbidi,
+        decontaminate=edges == "soft",
     )
     if not isinstance(cutout, Image.Image):  # difensivo: remove() e' polimorfa
         cutout = Image.open(io.BytesIO(cutout))
@@ -202,6 +209,24 @@ def remove_background(
     # duplicare l'originale (49 MB a 12 MP).
     original.putalpha(alpha)
     result = original
+
+    # Quando i bordi sono sfumati, i pixel misti dell'originale contengono un
+    # velo del vecchio sfondo: rembg ne stima il colore reale, ma quella stima
+    # sta nel ritaglio a risoluzione ridotta. La riportiamo solo sulla fascia
+    # dei pixel misti, larga pochi pixel, dove l'ingrandimento non si nota; il
+    # resto del soggetto continua a venire dai pixel originali, intatti.
+    if morbidi:
+        senza_alone = cutout.convert("RGB")
+        if senza_alone.size != original.size:
+            senza_alone = senza_alone.resize(original.size, Image.BILINEAR)
+        fascia = alpha.point(lambda v: 255 if 0 < v < 255 else 0)
+        # Si sostituiscono i soli canali di colore: incollando un'immagine RGB
+        # dentro una RGBA, Pillow porterebbe l'opacita' a 255 e cancellerebbe
+        # proprio la sfumatura che stiamo cercando di preservare.
+        canali = list(result.split())
+        for indice, canale in enumerate(senza_alone.split()):
+            canali[indice].paste(canale, mask=fascia)
+        result = Image.merge("RGBA", canali)
 
     # Sotto i pixel invisibili resterebbe lo sfondo originale, intatto e
     # recuperabile rimettendo l'opacita' a 255: azzerarlo lo elimina davvero,

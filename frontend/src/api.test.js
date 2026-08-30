@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { removeBackground } from './api.js'
 
 const file = new File([new Uint8Array([1, 2, 3])], 'foto.jpg', { type: 'image/jpeg' })
-const base = { file, model: 'u2net', alphaMatting: false, formato: 'png' }
+const base = { file, model: 'u2net', bordi: 'hard', formato: 'png' }
 
 function rispostaFinta({ ok = true, status = 200, corpo = null, tipo = 'image/png' } = {}) {
   return {

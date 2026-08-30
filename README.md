@@ -43,7 +43,7 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 | | |
 | :-- | :-- |
 | 🧠 **Sette modelli** | Da `u2netp` (5 MB, 0,33 s) a `birefnet-general` (973 MB): si cambia a ogni richiesta |
-| 🪶 **Alpha matting** | Bordi morbidi dove servono: capelli, pelo, frange |
+| 🎯 **Tre livelli di bordo** | Netti, morbidi senza alone, o alpha matting per capelli e pelo |
 | ⚡ **Full-res senza attese** | L'inferenza gira su una copia ridotta, la maschera torna a piena risoluzione: **24 MP in 2 s** |
 | 🏎️ **Acceleratore automatico** | CoreML o CUDA se ci sono, CPU altrimenti — senza configurare niente |
 | 🛡️ **Memoria con un tetto** | Le inferenze simultanee sono limitate: dodici richieste insieme stanno in 1,6 GB invece di 4,6 |
@@ -202,8 +202,23 @@ Sulla stessa foto da 12 MP, rispetto al comportamento predefinito:
 | :-- | :-- | :-- |
 | **Formato WEBP** | 0,48 s → 0,82 s | 1,30 MB → **0,15 MB** |
 | **Ritaglio ai bordi** (`trim`) | trascurabile | taglia i margini vuoti attorno al soggetto |
-| **Alpha matting** | 0,53 s → **1,07 s** | invariato |
+| **Bordi morbidi** (`edges=soft`) | 0,48 s → 0,72 s | 0,20 MB → 0,33 MB |
+| **Massima qualità** (`edges=max`) | 0,53 s → **1,07 s** | invariato |
 | **Acceleratore CoreML** | inferenza 0,40 s → **0,21 s** | invariato |
+
+<sub>La riga dei bordi morbidi è misurata su una foto con un soggetto definito: sull'immagine
+sintetica usata per le altre righe la maschera esce sfumata quasi ovunque e il confronto
+perderebbe senso.</sub>
+
+**I tre livelli sono gradini della stessa scala**, non interruttori indipendenti: `soft`
+smette di squadrare la maschera e toglie l'alone, `max` aggiunge sopra l'alpha matting.
+
+**Cosa cambia togliendo l'alone.** Con la maschera squadrata i contorni sono netti
+ma a scaletta; lasciandoli sfumati i pixel misti conservano un velo del vecchio sfondo — su
+un fondale verde acceso, misurato, una frangia di **+28 su 255** di verde in eccesso. Con
+`edges=soft` il colore reale del soggetto viene stimato e riportato su quella fascia:
+l'eccesso scende a **−5**, cioè sparisce. Vale anche per `edges=max`, che prima
+produceva bordi sfumati con i colori contaminati.
 
 Il WEBP resta otto volte più leggero, ma **non più veloce**: da quando i pixel invisibili
 vengono azzerati, il PNG ha pochissimo da comprimere e la codifica è la metà. Quando conta
@@ -273,7 +288,7 @@ Corpo `multipart/form-data`:
 | :-- | :-- | :-- | :-- |
 | `file` | file | — | PNG, JPEG, **HEIC/HEIF**, WEBP, BMP, TIFF o AVIF · max 15 MB e 50 Mpixel |
 | `model` | string | `u2net` | uno degli id restituiti da `/api/models` |
-| `alpha_matting` | bool | `false` | rifinisce i bordi semi-trasparenti |
+| `edges` | string | `hard` | `hard` squadra la maschera, `soft` la lascia sfumata togliendo l'alone, `max` usa l'alpha matting |
 | `background` | string | — | colore esadecimale (`#fff`, `#ffffff`, `#ffffffaa`); se assente lo sfondo resta trasparente |
 | `format` | string | `png` | `png` (senza perdita) o `webp` (molto più leggero) |
 | `trim` | bool | `false` | ritaglia il risultato al riquadro del soggetto |
@@ -287,7 +302,7 @@ curl -F "file=@foto.jpg" http://localhost:8000/api/remove-background -o out.png
 
 # sfondo bianco, modello per ritratti, bordi rifiniti
 curl -F "file=@ritratto.jpg" -F "model=u2net_human_seg" -F "background=#ffffff" \
-     -F "alpha_matting=true" http://localhost:8000/api/remove-background -o tessera.png
+     -F "edges=max" http://localhost:8000/api/remove-background -o tessera.png
 ```
 
 <details>
@@ -300,7 +315,7 @@ with open("foto.jpg", "rb") as f:
     r = requests.post(
         "http://localhost:8000/api/remove-background",
         files={"file": ("foto.jpg", f, "image/jpeg")},
-        data={"model": "u2net", "alpha_matting": "false"},
+        data={"model": "u2net", "edges": "soft"},
         timeout=120,
     )
 r.raise_for_status()
