@@ -13,59 +13,54 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat&labelColor=24292f)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/simonesilvani/photo-remove-background/ci.yml?style=flat&logo=githubactions&logoColor=white&label=CI&labelColor=24292f)](https://github.com/simonesilvani/photo-remove-background/actions/workflows/ci.yml)
 
+<br>
+
+<img src="docs/confronto.webp" alt="L'applicazione mostra la foto originale e il soggetto ritagliato, separati da una maniglia trascinabile" width="820">
+
+<sub>Trascina la maniglia per confrontare originale e risultato. L'immagine è
+<a href="https://commons.wikimedia.org/wiki/File:Michelangelo_-_Creation_of_Adam.jpg">La creazione di Adamo</a> di Michelangelo, pubblico dominio.</sub>
+
 </div>
 
 ---
 
 ## ✨ Caratteristiche
 
-|  |  |
+### Quello che ci fai
+
+| | |
 | :-- | :-- |
-| 🖱️ **Tre modi per caricare** | Trascina, clicca o incolla con <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd> |
-| 📋 **Copia negli appunti** | Il risultato torna negli appunti, senza passare dal disco |
-| 🗂️ **Elaborazione in blocco** | Più immagini insieme, con avanzamento e ZIP finale |
-| 🎚️ **Confronto prima/dopo** | Slider trascinabile, con scacchiera per leggere la trasparenza |
-| 🧠 **7 modelli selezionabili** | Dal più leggero (`u2netp`, 5 MB) al più accurato (`birefnet-general`) |
-| 🎨 **Sfondo a scelta** | Trasparente oppure un colore pieno, composto lato server |
-| 📦 **PNG o WEBP** | Stesso ritaglio, file fino a 50 volte più leggero |
-| ✂️ **Ritaglio ai bordi** | Via i margini vuoti attorno al soggetto |
-| 🪶 **Alpha matting** | Bordi morbidi dove servono davvero: capelli, pelo, frange |
-| ⚡ **Full-res senza attese** | Inferenza su copia ridotta, maschera riportata sull'originale |
-| 🏎️ **Acceleratore automatico** | CoreML o CUDA se disponibili, altrimenti CPU |
-| 📱 **Foto da iPhone** | HEIC letto direttamente, e l'orientamento EXIF rispettato |
-| 🛡️ **RAM con un tetto** | Le inferenze simultanee sono limitate: il consumo non esplode sotto carico |
-| 🔒 **100% offline** | `onnxruntime` in locale: nessun upload verso terze parti |
+| 🖱️ **Carichi come ti pare** | Trascini, clicchi o incolli con <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>V</kbd> — anche HEIC dall'iPhone |
+| 🎚️ **Vedi la differenza** | Maniglia trascinabile fra originale e ritaglio, con la scacchiera per leggere la trasparenza |
+| 🗂️ **Ne fai dieci insieme** | Avanzamento immagine per immagine, ZIP alla fine, e un file rotto non blocca gli altri |
+| 🎨 **Scegli lo sfondo** | Trasparente, oppure un colore pieno su cui comporre il soggetto |
+| ✂️ **Tagli i margini vuoti** | Un soggetto piccolo in una foto grande esce 364×383 invece di 2000×1500 |
+| 📦 **Scegli il peso** | Lo stesso ritaglio pesa **18,8 MB in PNG e 0,36 in WEBP**, con la trasparenza intatta |
+| 📋 **Te lo porti via** | Download o copia diretta negli appunti, senza passare dal disco |
 
----
+### Come si comporta sotto
 
-## 🏛️ Architettura
+| | |
+| :-- | :-- |
+| 🧠 **Sette modelli** | Da `u2netp` (5 MB, 0,33 s) a `birefnet-general` (973 MB): si cambia a ogni richiesta |
+| 🪶 **Alpha matting** | Bordi morbidi dove servono: capelli, pelo, frange |
+| ⚡ **Full-res senza attese** | L'inferenza gira su una copia ridotta, la maschera torna a piena risoluzione: **24 MP in 2 s** |
+| 🏎️ **Acceleratore automatico** | CoreML o CUDA se ci sono, CPU altrimenti — senza configurare niente |
+| 🛡️ **Memoria con un tetto** | Le inferenze simultanee sono limitate: dodici richieste insieme stanno in 1,6 GB invece di 4,6 |
+| 🔒 **Niente esce di lì** | Modelli in locale, nessuna chiave, nessun servizio esterno, nessuna immagine conservata |
 
-```mermaid
-flowchart LR
-    subgraph Browser["🌐 Browser — React 19 + Vite"]
-        UI["Dropzone · Controlli · Slider"]
-    end
+<div align="center">
 
-    subgraph Server["🐍 Server — FastAPI + Uvicorn"]
-        API["POST /api/remove-background<br/>POST /api/remove-background/batch"]
-        SVC["services/removal.py"]
-    end
+<img src="docs/originale-affresco.webp" alt="L'affresco con il suo sfondo originale" width="49%">
+<img src="docs/originale-david.webp" alt="La foto del David con il suo sfondo originale" width="49%">
+<img src="docs/ritaglio-affresco.webp" alt="Lo stesso affresco con lo sfondo rimosso" width="49%">
+<img src="docs/ritaglio-david.webp" alt="Lo stesso David con lo sfondo rimosso, riccioli compresi" width="49%">
 
-    subgraph Engine["🧠 Inferenza — onnxruntime"]
-        MODEL["Modello ONNX su CoreML, CUDA o CPU<br/>u2net · isnet · birefnet"]
-    end
+<sub><b>Sopra</b> le immagini di partenza, <b>sotto</b> lo stesso soggetto dopo la
+rimozione: la scacchiera è la trasparenza. A destra i riccioli dei capelli, il caso in cui
+l'alpha matting fa la differenza.</sub>
 
-    UI -- "multipart/form-data" --> API
-    API -- "slot di inferenza<br/>+ thread separato" --> SVC
-    SVC -- "copia ridotta" --> MODEL
-    MODEL -- "maschera alpha" --> SVC
-    SVC -- "immagine RGBA" --> API
-    API -- "PNG · WEBP · ZIP" --> UI
-```
-
-Il frontend parla con il backend attraverso quattro endpoint HTTP: puoi sostituirlo,
-incorporarlo in un'altra app o usare l'API da sola. In produzione lo stesso processo
-serve anche il frontend compilato, quindi l'applicazione gira su un solo indirizzo.
+</div>
 
 ---
 
@@ -109,6 +104,37 @@ Apri **http://localhost:5173** e trascina dentro un'immagine.
 
 ---
 
+## 🏛️ Architettura
+
+```mermaid
+flowchart LR
+    subgraph Browser["🌐 Browser — React 19 + Vite"]
+        UI["Dropzone · Controlli · Slider"]
+    end
+
+    subgraph Server["🐍 Server — FastAPI + Uvicorn"]
+        API["POST /api/remove-background<br/>POST /api/remove-background/batch"]
+        SVC["services/removal.py"]
+    end
+
+    subgraph Engine["🧠 Inferenza — onnxruntime"]
+        MODEL["Modello ONNX su CoreML, CUDA o CPU<br/>u2net · isnet · birefnet"]
+    end
+
+    UI -- "multipart/form-data" --> API
+    API -- "slot di inferenza<br/>+ thread separato" --> SVC
+    SVC -- "copia ridotta" --> MODEL
+    MODEL -- "maschera alpha" --> SVC
+    SVC -- "immagine RGBA" --> API
+    API -- "PNG · WEBP · ZIP" --> UI
+```
+
+Il frontend parla con il backend attraverso quattro endpoint HTTP: puoi sostituirlo,
+incorporarlo in un'altra app o usare l'API da sola. In produzione lo stesso processo
+serve anche il frontend compilato, quindi l'applicazione gira su un solo indirizzo.
+
+---
+
 <details>
 <summary><b>🔄 Anatomia di una richiesta</b> — cosa succede fra il drop del file e il PNG</summary>
 
@@ -141,78 +167,20 @@ sequenceDiagram
 
 ---
 
-## 🧠 Modelli e prestazioni
+## 🧠 Prestazioni
 
-Il modello si sceglie a ogni richiesta: nessun riavvio, i pesi restano in cache.
-`GET /api/models` dice quali sono già sul disco e quanto pesano quelli che mancano,
-così l'interfaccia avvisa prima di far partire un download da centinaia di MB.
+Le reti di segmentazione lavorano internamente a bassa risoluzione (320×320 per la famiglia
+u2net): l'inferenza gira su una **copia ridotta** — lato lungo ≤ 2000 px — e la maschera
+torna poi alla dimensione di partenza. Colore e dettagli arrivano sempre dai pixel
+originali, a essere ridimensionata è solo la maschera. Per questo il costo cresce **molto
+meno che linearmente** con i megapixel: a scalare è il lavoro sui pixel, non l'inferenza.
 
-| Modello | Peso | Tempo | Velocità relativa | Ideale per |
-| :-- | --: | --: | :-- | :-- |
-| `u2netp` | 5 MB | **0,33 s** | `███████░░░░░░░░░░░░░` | anteprime rapide, macchine modeste |
-| `silueta` | 44 MB | **0,37 s** | `███████░░░░░░░░░░░░░` | stessa resa di u2net, ¼ dello spazio |
-| `u2net` ⭐ | 176 MB | **0,53 s** | `███████████░░░░░░░░░` | default — soggetti generici |
-| `u2net_human_seg` | 176 MB | **0,50 s** | `██████████░░░░░░░░░░` | persone, ritratti, foto tessera |
-| `isnet-anime` | 176 MB | **0,97 s** | `███████████████████░` | illustrazioni, anime, artwork |
-| `isnet-general-use` | 179 MB | **1,00 s** | `████████████████████` | bordi complessi, soggetti sottili |
-| `birefnet-general` | 973 MB | non misurato | — | qualità massima, molto più lento |
-
-<sub>Apple M3 Pro · CPU · immagine 1920×1280 con texture · mediana di 3 esecuzioni dopo il warm-up.</sub>
-
-**Alpha matting** rifinisce i bordi semi-trasparenti a un costo contenuto: con `u2net` la
-stessa immagine passa da **0,53 s** a **1,07 s**. Serve su capelli, pelo e tessuti sottili;
-su soggetti dai bordi netti non cambia il risultato.
-
-**Il ritaglio ai bordi vale quanto il formato.** Un soggetto piccolo dentro una foto
-grande produce un file quasi tutto vuoto: con `trim=true` una 2000×1500 esce come 364×383,
-e il PNG passa da 69 KB a 48 KB — in WEBP a **7,8 KB**. Il riquadro si calcola sulla
-maschera prima di comporre l'eventuale sfondo, ignorando gli aloni sotto il 4% di opacità.
-
-**L'acceleratore hardware viene usato da solo se c'è.** All'avvio il server cerca CoreML
-(Mac Apple Silicon) o CUDA (GPU NVIDIA) e ricade sulla CPU se non li trova, senza
-configurazione. Su un M3 Pro la stessa foto da 12 MP passa da **1,03 s a 0,84 s**, e
-l'inferenza da sola quasi raddoppia di velocità (0,40 s → 0,21 s). Il provider scelto
-compare nei log all'avvio.
-
-> [!IMPORTANT]
-> CoreML si paga in memoria: **881 MB a riposo contro 414 MB** su CPU, cioè il doppio
-> abbondante, per guadagnare circa 0,25 s a immagine. Su una macchina con poca RAM, o
-> quando a contare è quanti processi ci stanno, conviene `RB_ACCELERATION=0`. Nei
-> contenitori Linux la scelta non si pone: CoreML non è disponibile e si usa la CPU.
-
-**Il formato di uscita pesa più del modello.** Sulla stessa foto da 12 MP:
-
-| Formato | Tempo totale | File prodotto |
-| :-- | --: | --: |
-| PNG (default, senza perdita) | 1,40 s | **18,8 MB** |
-| WEBP | 1,03 s | **0,36 MB** |
-
-Il canale alpha resta **identico bit per bit** — la compressione agisce solo sui colori — e
-sui pixel visibili la differenza media è di 0,33 su 255, cioè invisibile. Il PNG resta il
-default perché è senza perdita e lo apre qualunque programma.
-
-> [!TIP]
-> Cerchi il modello più leggero da distribuire? `silueta` pesa **¼** di `u2net` con tempi
-> praticamente identici. Cerchi il più veloce da scaricare? `u2netp`: 5 MB.
-
----
-
-## 📐 Come vengono gestite le immagini grandi
-
-Le reti di segmentazione lavorano internamente a bassa risoluzione (320×320 per la
-famiglia u2net), quindi l'inferenza gira su una **copia ridotta** (lato lungo ≤ 2000 px) e
-la maschera alpha viene poi riportata alla dimensione di partenza. Colore e dettagli
-arrivano sempre dai pixel originali: a essere ridimensionata è solo la maschera.
-
-Il costo cresce così **molto meno che linearmente** con i megapixel — a scalare è solo il
-lavoro sui pixel, non l'inferenza.
-
-| Risoluzione | Megapixel | Tempo | | PNG in uscita |
-| :-- | --: | --: | :-- | --: |
-| 800 × 533 | 0,4 MP | **0,32 s** | `███░░░░░░░░░░░░░░░░░` | 0,5 MB |
-| 1920 × 1280 | 2,5 MP | **0,51 s** | `█████░░░░░░░░░░░░░░░` | 3,1 MB |
-| 3024 × 4032 | 12,2 MP | **1,22 s** | `████████████░░░░░░░░` | 15,1 MB |
-| 6000 × 4000 | 24,0 MP | **1,99 s** | `████████████████████` | 29,6 MB |
+| Risoluzione | Megapixel | Tempo | PNG in uscita |
+| :-- | --: | --: | --: |
+| 800 × 533 | 0,4 MP | **0,32 s** | 0,5 MB |
+| 1920 × 1280 | 2,5 MP | **0,51 s** | 3,1 MB |
+| 3024 × 4032 | 12,2 MP | **1,22 s** | 15,1 MB |
+| 6000 × 4000 | 24,0 MP | **1,99 s** | 29,6 MB |
 
 ```mermaid
 xychart-beta
@@ -223,15 +191,55 @@ xychart-beta
     line [0.32, 0.51, 1.22, 1.99]
 ```
 
-<sub>Immagini sintetiche ad alto dettaglio, il caso peggiore per la codifica PNG — che
-resta la voce di costo dominante: l'inferenza è ~0,4 s a qualsiasi risoluzione.</sub>
+<sub>Immagini sintetiche ad alto dettaglio, il caso peggiore per la codifica PNG — che resta
+la voce di costo dominante: l'inferenza è ~0,4 s a qualsiasi risoluzione.</sub>
+
+### Quanto costa ogni opzione
+
+Sulla stessa foto da 12 MP, rispetto al comportamento predefinito:
+
+| Opzione | Effetto sul tempo | Effetto sul file |
+| :-- | :-- | :-- |
+| **Formato WEBP** | 1,40 s → **1,03 s** | 18,8 MB → **0,36 MB** |
+| **Ritaglio ai bordi** (`trim`) | trascurabile | 2000×1500 → 364×383, 69 KB → 48 KB |
+| **Alpha matting** | 0,53 s → **1,07 s** | invariato |
+| **Acceleratore CoreML** | 1,03 s → **0,84 s** | invariato |
+
+Il WEBP non è un compromesso al ribasso: il canale alpha resta **identico bit per bit** e
+sui pixel visibili la differenza di colore è di 0,33 su 255, invisibile. Il PNG resta il
+default solo perché è senza perdita e lo apre qualunque programma.
+
+> [!IMPORTANT]
+> CoreML si paga in memoria: **881 MB a riposo contro 414 MB** su CPU, il doppio abbondante
+> per guadagnare 0,25 s a immagine. Con poca RAM, o quando conta quanti processi ci stanno,
+> conviene `RB_ACCELERATION=0`. Nei contenitori Linux la scelta non si pone.
+
+### Quale modello
+
+Si cambia a ogni richiesta, senza riavviare. `GET /api/models` dice quali sono già sul
+disco e quanto pesano quelli che mancano, così l'interfaccia avvisa prima di far partire un
+download da centinaia di MB.
+
+| Modello | Peso | Tempo | Velocità relativa | Ideale per |
+| :-- | --: | --: | :-- | :-- |
+| `u2netp` | 5 MB | **0,33 s** | `███████░░░░░░░░░░░░░` | anteprime rapide, macchine modeste |
+| `silueta` | 44 MB | **0,37 s** | `███████░░░░░░░░░░░░░` | come u2net, ¼ dello spazio |
+| `u2net` ⭐ | 176 MB | **0,53 s** | `███████████░░░░░░░░░` | default — soggetti generici |
+| `u2net_human_seg` | 176 MB | **0,50 s** | `██████████░░░░░░░░░░` | persone, ritratti, foto tessera |
+| `isnet-anime` | 176 MB | **0,97 s** | `███████████████████░` | illustrazioni, anime, artwork |
+| `isnet-general-use` | 179 MB | **1,00 s** | `████████████████████` | bordi complessi, soggetti sottili |
+| `birefnet-general` | 973 MB | non misurato | — | qualità massima, molto più lento |
+
+<sub>Apple M3 Pro · CPU · immagine 1920×1280 con texture · mediana di 3 esecuzioni dopo il
+warm-up. L'alpha matting serve su capelli, pelo e tessuti sottili; sui bordi netti non
+cambia il risultato.</sub>
 
 > [!NOTE]
 > Il limite di 15 MB sull'upload non protegge da niente: un PNG di **388 KB** può
 > decodificare 121 Mpixel e occupare ~900 MB di RAM. Il controllo vero è
-> `RB_MAX_IMAGE_PIXELS` (50 Mpixel), verificato sull'intestazione del file prima che i
-> pixel vengano allocati — richieste simili vengono respinte con `413` in pochi
-> millisecondi e a memoria invariata.
+> `RB_MAX_IMAGE_PIXELS` (50 Mpixel), verificato sull'intestazione del file prima che i pixel
+> vengano allocati: richieste simili vengono respinte con `413` in pochi millisecondi e a
+> memoria invariata.
 
 ---
 
