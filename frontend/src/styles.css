@@ -290,6 +290,17 @@ select:focus-visible, .btn:focus-visible, .swatch:focus-visible, .dropzone:focus
   cursor: pointer;
 }
 
+.cursore {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.cursore > span:first-child { width: 68px; }
+.cursore input[type='range'] { flex: 1; accent-color: var(--accent); }
+.cursore__valore { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+
 /* --- Azioni --- */
 .actions { display: flex; flex-direction: column; gap: 10px; }
 .btn {

@@ -204,6 +204,7 @@ Sulla stessa foto da 12 MP, rispetto al comportamento predefinito:
 | **Ritaglio ai bordi** (`trim`) | trascurabile | taglia i margini vuoti attorno al soggetto |
 | **Bordi morbidi** (`edges=soft`) | 0,48 s → 0,72 s | 0,20 MB → 0,33 MB |
 | **Massima qualità** (`edges=max`) | 0,53 s → **1,07 s** | invariato |
+| **Rifinitura** (`erode=2`, `feather=3`) | +0,50 s | invariato |
 | **Acceleratore CoreML** | inferenza 0,40 s → **0,21 s** | invariato |
 
 <sub>La riga dei bordi morbidi è misurata su una foto con un soggetto definito: sull'immagine
@@ -212,6 +213,12 @@ perderebbe senso.</sub>
 
 **I tre livelli sono gradini della stessa scala**, non interruttori indipendenti: `soft`
 smette di squadrare la maschera e toglie l'alone, `max` aggiunge sopra l'alpha matting.
+
+Sopra i tre livelli agisce la **rifinitura** (`erode` e `feather`), che lavora sulla
+maschera già a piena risoluzione: `erode` toglie l'ultimo anello di pixel — quello che
+spesso conserva un residuo di sfondo — e `feather` ammorbidisce il passaggio. Costano
+poco entro valori normali, ma crescono in fretta: a 12 MP `erode=10` con `feather=20`
+arriva a 2,4 s.
 
 **Cosa cambia togliendo l'alone.** Con la maschera squadrata i contorni sono netti
 ma a scaletta; lasciandoli sfumati i pixel misti conservano un velo del vecchio sfondo — su
@@ -300,6 +307,8 @@ Corpo `multipart/form-data`:
 | `file` | file | — | PNG, JPEG, **HEIC/HEIF**, WEBP, BMP, TIFF o AVIF · max 15 MB e 50 Mpixel |
 | `model` | string | `u2net` | uno degli id restituiti da `/api/models` |
 | `edges` | string | `hard` | `hard` squadra la maschera, `soft` la lascia sfumata togliendo l'alone, `max` usa l'alpha matting |
+| `erode` | int | `0` | restringe la maschera di N pixel (0-10): mangia l'anello di sfondo rimasto sul contorno |
+| `feather` | float | `0` | sfuma il contorno con un raggio di N pixel (0-20) |
 | `background` | string | — | colore esadecimale (`#fff`, `#ffffff`, `#ffffffaa`); se assente lo sfondo resta trasparente |
 | `format` | string | `png` | `png` (senza perdita) o `webp` (molto più leggero) |
 | `trim` | bool | `false` | ritaglia il risultato al riquadro del soggetto |

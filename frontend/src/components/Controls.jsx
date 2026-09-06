@@ -24,6 +24,10 @@ export default function Controls({
   onFormatoChange,
   bordi,
   onBordiChange,
+  erosione,
+  onErosioneChange,
+  sfumatura,
+  onSfumaturaChange,
   trim,
   onTrimChange,
   bgPreset,
@@ -133,6 +137,37 @@ export default function Controls({
         </select>
         <span className="field__hint">{BORDI.find((b) => b.id === bordi)?.hint}</span>
       </label>
+
+      <div className="field">
+        <span className="field__label">Rifinitura</span>
+        <label className="cursore">
+          <span>Restringi</span>
+          <input
+            type="range"
+            min="0"
+            max="10"
+            value={erosione}
+            disabled={disabled}
+            onChange={(e) => onErosioneChange(Number(e.target.value))}
+          />
+          <span className="cursore__valore">{erosione} px</span>
+        </label>
+        <label className="cursore">
+          <span>Sfuma</span>
+          <input
+            type="range"
+            min="0"
+            max="20"
+            value={sfumatura}
+            disabled={disabled}
+            onChange={(e) => onSfumaturaChange(Number(e.target.value))}
+          />
+          <span className="cursore__valore">{sfumatura} px</span>
+        </label>
+        <span className="field__hint">
+          Mangia l'ultimo anello di sfondo e ammorbidisce il passaggio
+        </span>
+      </div>
 
       <label className="field field--inline">
         <input

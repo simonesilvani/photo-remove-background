@@ -180,6 +180,59 @@ def test_sui_bordi_sfumati_i_colori_arrivano_dalla_stima(monkeypatch):
     assert pixel[0] > 200 and pixel[1] < 60, f"colore preso dall'originale verde: {pixel}"
 
 
+def _con_maschera_quadrata(monkeypatch, lato=60, quadrato=(20, 20, 40, 40)):
+    """Prepara il servizio con una maschera netta, per misurare le rifiniture."""
+    from app.services import removal
+
+    def finto(img, **kwargs):
+        fuori = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        fuori.paste((255, 255, 255, 255), quadrato)
+        return fuori
+
+    monkeypatch.setattr(removal, "get_session", lambda _m: None)
+    monkeypatch.setattr(removal, "remove", finto)
+    sorgente = io.BytesIO()
+    Image.new("RGB", (lato, lato), (200, 100, 50)).save(sorgente, format="PNG")
+    return removal, sorgente.getvalue()
+
+
+def _conta(uscita):
+    canale = Image.open(io.BytesIO(uscita)).convert("RGBA").getchannel("A")
+    istogramma = canale.histogram()
+    opachi = sum(istogramma[251:])
+    sfumati = sum(istogramma[6:250])
+    return opachi, sfumati
+
+
+def test_erosione_e_sfumatura_agiscono_sul_risultato(monkeypatch):
+    """Le rifiniture devono finire nella maschera applicata all'immagine, non
+    restare in una variabile calcolata dopo che la maschera e' gia' stata usata."""
+    removal, dati = _con_maschera_quadrata(monkeypatch)
+
+    opachi, sfumati = _conta(removal.remove_background(dati, "u2net")[0])
+    assert (opachi, sfumati) == (400, 0)  # quadrato 20x20, bordi netti
+
+    erosi, _ = _conta(removal.remove_background(dati, "u2net", erode=2)[0])
+    assert erosi < opachi, "l'erosione deve restringere il soggetto"
+
+    _, sfumati_dopo = _conta(removal.remove_background(dati, "u2net", feather=3)[0])
+    assert sfumati_dopo > 0, "la sfumatura deve creare pixel intermedi"
+
+
+@pytest.mark.parametrize(
+    "campi, frammento",
+    [
+        ({"erode": 99}, "Erosione fuori scala"),
+        ({"erode": -1}, "Erosione fuori scala"),
+        ({"feather": 999}, "Sfumatura fuori scala"),
+    ],
+)
+def test_rifiniture_fuori_scala(client, immagine, campi, frammento):
+    r = upload(client, immagine(), **campi)
+    assert r.status_code == 400
+    assert frammento in r.json()["detail"]
+
+
 def test_sotto_i_pixel_trasparenti_non_resta_lo_sfondo(monkeypatch):
     """In un PNG i pixel invisibili hanno comunque un colore: se ci resta lo
     sfondo originale, basta rimettere l'opacità a 255 per rivederlo."""

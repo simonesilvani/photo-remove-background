@@ -53,6 +53,8 @@ export async function removeBackgroundBatch({
   files,
   model,
   bordi,
+  erosione,
+  sfumatura,
   background,
   formato,
   trim,
@@ -63,6 +65,8 @@ export async function removeBackgroundBatch({
   for (const file of files) form.append('files', file)
   form.append('model', model)
   form.append('edges', bordi)
+  form.append('erode', String(erosione ?? 0))
+  form.append('feather', String(sfumatura ?? 0))
   form.append('format', formato)
   form.append('trim', String(Boolean(trim)))
   if (background) form.append('background', background)
@@ -96,6 +100,8 @@ export async function removeBackground({
   file,
   model,
   bordi,
+  erosione,
+  sfumatura,
   background,
   formato,
   trim,
@@ -106,6 +112,8 @@ export async function removeBackground({
   form.append('file', file)
   form.append('model', model)
   form.append('edges', bordi)
+  form.append('erode', String(erosione ?? 0))
+  form.append('feather', String(sfumatura ?? 0))
   form.append('format', formato)
   form.append('trim', String(Boolean(trim)))
   if (background) form.append('background', background)

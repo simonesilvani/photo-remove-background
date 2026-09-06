@@ -67,6 +67,13 @@ EDGE_MODES = {
 }
 DEFAULT_EDGES = os.getenv("RB_DEFAULT_EDGES", "hard")
 
+# Rifinitura dei contorni, applicata alla maschera a piena risoluzione.
+# L'erosione "mangia" l'ultimo anello di pixel, quello che spesso conserva un
+# residuo di sfondo; la sfumatura ammorbidisce il passaggio. I tetti evitano
+# richieste assurde: una sfumatura enorme su 24 MP costerebbe secondi.
+MAX_ERODE_PX = int(os.getenv("RB_MAX_ERODE_PX", 10))
+MAX_FEATHER_PX = float(os.getenv("RB_MAX_FEATHER_PX", 20))
+
 # Azzera i colori sotto i pixel completamente trasparenti. Senza, lo sfondo
 # "rimosso" resta dentro il file — basta rimettere alpha a 255 per rivederlo — e
 # il PNG pesa molto di piu'. RB_CLEAR_INVISIBLE=0 lo disattiva.

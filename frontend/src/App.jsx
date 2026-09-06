@@ -14,6 +14,8 @@ export default function App() {
   const [models, setModels] = useState([])
   const [model, setModel] = useState('u2net')
   const [bordi, setBordi] = useState('hard')
+  const [erosione, setErosione] = useState(0)
+  const [sfumatura, setSfumatura] = useState(0)
   const [formato, setFormato] = useState('png')
   const [trim, setTrim] = useState(false)
   const [maxBytes, setMaxBytes] = useState(MAX_BYTES_DEFAULT)
@@ -175,6 +177,8 @@ export default function App() {
               file,
               model,
               bordi,
+              erosione,
+              sfumatura,
               background: backgroundValue(),
               formato,
               trim,
@@ -220,6 +224,8 @@ export default function App() {
         file,
         model,
         bordi,
+        erosione,
+        sfumatura,
         background: backgroundValue(),
         formato,
         trim,
@@ -403,6 +409,10 @@ export default function App() {
             onFormatoChange={setFormato}
             bordi={bordi}
             onBordiChange={setBordi}
+            erosione={erosione}
+            onErosioneChange={setErosione}
+            sfumatura={sfumatura}
+            onSfumaturaChange={setSfumatura}
             trim={trim}
             onTrimChange={setTrim}
             bgPreset={bgPreset}

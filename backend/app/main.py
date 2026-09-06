@@ -28,6 +28,8 @@ from .config import (
     MAX_BATCH_BYTES,
     MAX_BATCH_FILES,
     MAX_CONCURRENCY,
+    MAX_ERODE_PX,
+    MAX_FEATHER_PX,
     MAX_IMAGE_PIXELS,
     MAX_UPLOAD_BYTES,
     QUEUE_TIMEOUT_SECONDS,
@@ -163,7 +165,12 @@ async def models():
 
 
 def _valida_opzioni(
-    model: str, format: str, background: str | None, edges: str = DEFAULT_EDGES
+    model: str,
+    format: str,
+    background: str | None,
+    edges: str = DEFAULT_EDGES,
+    erode: int = 0,
+    feather: float = 0,
 ) -> tuple[str, str | None, str]:
     """Controlla le opzioni comuni ai due endpoint."""
     if model not in AVAILABLE_MODELS:
@@ -183,6 +190,11 @@ def _valida_opzioni(
             hex_to_rgba(bg)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
+
+    if not 0 <= erode <= MAX_ERODE_PX:
+        raise HTTPException(400, f"Erosione fuori scala: ammessi 0-{MAX_ERODE_PX} pixel")
+    if not 0 <= feather <= MAX_FEATHER_PX:
+        raise HTTPException(400, f"Sfumatura fuori scala: ammessi 0-{MAX_FEATHER_PX:g} pixel")
 
     modo = edges.lower()
     if modo not in EDGE_MODES:
@@ -264,6 +276,8 @@ async def remove_background_batch(
     files: list[UploadFile] = File(..., description="Immagini da elaborare"),
     model: str = Form(DEFAULT_MODEL),
     edges: str = Form(DEFAULT_EDGES),
+    erode: int = Form(0),
+    feather: float = Form(0),
     background: str | None = Form(None),
     format: str = Form("png"),
     trim: bool = Form(False),
@@ -275,7 +289,7 @@ async def remove_background_batch(
     una foto e l'altra. Un file che fallisce non annulla il resto: finisce in
     `errori.txt` dentro lo ZIP.
     """
-    formato, bg, modo_bordi = _valida_opzioni(model, format, background, edges)
+    formato, bg, modo_bordi = _valida_opzioni(model, format, background, edges, erode, feather)
     if not files:
         raise HTTPException(400, "Nessun file caricato")
     if len(files) > MAX_BATCH_FILES:
@@ -318,6 +332,8 @@ async def remove_background_batch(
                     data,
                     model,
                     edges=modo_bordi,
+                    erode=erode,
+                    feather=feather,
                     background=bg,
                     output_format=formato,
                     trim=trim,
@@ -375,12 +391,14 @@ async def remove_background_endpoint(
     file: UploadFile = File(..., description="Immagine da elaborare"),
     model: str = Form(DEFAULT_MODEL),
     edges: str = Form(DEFAULT_EDGES),
+    erode: int = Form(0),
+    feather: float = Form(0),
     background: str | None = Form(None),
     format: str = Form("png"),
     trim: bool = Form(False),
 ):
     """Restituisce l'immagine con lo sfondo rimosso, in PNG o WEBP."""
-    formato, bg, modo_bordi = _valida_opzioni(model, format, background, edges)
+    formato, bg, modo_bordi = _valida_opzioni(model, format, background, edges, erode, feather)
     data = await _leggi_immagine(file)
     await _prepara_modello(model)
 
@@ -389,6 +407,8 @@ async def remove_background_endpoint(
         data,
         model,
         edges=modo_bordi,
+        erode=erode,
+        feather=feather,
         background=bg,
         output_format=formato,
         trim=trim,
