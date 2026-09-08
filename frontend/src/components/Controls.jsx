@@ -113,19 +113,6 @@ export default function Controls({
         </div>
       </div>
 
-      <label className="field field--inline">
-        <input
-          type="checkbox"
-          checked={trim}
-          disabled={disabled}
-          onChange={(e) => onTrimChange(e.target.checked)}
-        />
-        <span>
-          <span className="field__label">Ritaglia ai bordi</span>
-          <span className="field__hint">Elimina i margini trasparenti attorno al soggetto</span>
-        </span>
-      </label>
-
       <label className="field">
         <span className="field__label">Bordi</span>
         <select value={bordi} disabled={disabled} onChange={(e) => onBordiChange(e.target.value)}>
@@ -181,7 +168,6 @@ export default function Controls({
           <span className="field__hint">Elimina i margini trasparenti attorno al soggetto</span>
         </span>
       </label>
-
     </div>
   )
 }
