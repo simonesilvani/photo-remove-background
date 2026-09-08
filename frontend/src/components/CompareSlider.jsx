@@ -6,6 +6,7 @@ const LARGHEZZA_ETICHETTA = 120
 /** Confronto originale/risultato con maniglia trascinabile. */
 export default function CompareSlider({ before, after, checkerboard = true }) {
   const containerRef = useRef(null)
+  const handleRef = useRef(null)
   const [position, setPosition] = useState(50)
   const [width, setWidth] = useState(0)
   const draggingRef = useRef(false)
@@ -62,25 +63,33 @@ export default function CompareSlider({ before, after, checkerboard = true }) {
       className={`compare ${checkerboard ? 'compare--checker' : ''}`}
       ref={containerRef}
       onMouseDown={(e) => {
+        // Senza preventDefault il browser avvia la selezione (e su Safari il
+        // trascinamento dell'immagine, che la colora di blu). Il fuoco lo
+        // spostiamo a mano sulla maniglia, altrimenti preventDefault lo blocca
+        // e le frecce non funzionerebbero piu' dopo un clic.
+        e.preventDefault()
         draggingRef.current = true
         updateFromClientX(e.clientX)
+        handleRef.current?.focus()
       }}
       onTouchStart={(e) => {
         draggingRef.current = true
         updateFromClientX(e.touches[0].clientX)
       }}
     >
-      <img className="compare__img" src={after} alt="Risultato senza sfondo" />
+      <img className="compare__img" src={after} alt="Risultato senza sfondo" draggable={false} />
       <div className="compare__overlay" style={{ width: `${position}%` }}>
         <img
           className="compare__img"
           src={before}
           alt="Immagine originale"
+          draggable={false}
           style={{ width: width ? `${width}px` : '100%', maxWidth: 'none' }}
         />
       </div>
       <div
         className="compare__handle"
+        ref={handleRef}
         style={{ left: `${position}%` }}
         role="slider"
         aria-label="Confronto prima/dopo"

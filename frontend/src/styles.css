@@ -186,7 +186,10 @@ body {
   position: relative;
   overflow: hidden;
   border-radius: 10px;
+  -webkit-user-select: none;
   user-select: none;
+  /* Il dito che trascina la maniglia non deve far scorrere la pagina. */
+  touch-action: none;
   cursor: ew-resize;
   line-height: 0;
 }
@@ -202,7 +205,11 @@ body {
   background-position: 0 0, 0 9px, 9px -9px, -9px 0;
   background-color: #21252f;
 }
-.compare__img { display: block; width: 100%; height: auto; max-height: 480px; object-fit: contain; }
+.compare__img {
+  display: block; width: 100%; height: auto; max-height: 480px; object-fit: contain;
+  /* Niente trascinamento nativo dell'immagine: e' cio' che la tingeva di blu. */
+  -webkit-user-drag: none;
+}
 .compare__overlay { position: absolute; inset: 0 auto 0 0; overflow: hidden; }
 .compare__handle {
   position: absolute;
