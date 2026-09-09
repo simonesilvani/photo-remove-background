@@ -36,6 +36,10 @@ export default function App() {
   const [error, setError] = useState(null)
 
   const abortRef = useRef(null)
+  // I gestori di trascinamento e di ⌘V vivono su `window`: la loro chiusura
+  // vede lo stato del render in cui sono stati registrati. Qui trovano sempre
+  // l'insieme aggiornato, per sapere a cosa aggiungere la foto in arrivo.
+  const insiemeRef = useRef({ blocco: [], file: null })
 
   useEffect(() => {
     fetchModels()
@@ -82,9 +86,13 @@ export default function App() {
   }, [loading])
 
   useEffect(() => {
+    insiemeRef.current = { blocco, file }
+  }, [blocco, file])
+
+  useEffect(() => {
     const onPaste = (e) => {
       const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'))
-      if (item) selectFile(item.getAsFile())
+      if (item) selectFiles([item.getAsFile()])
     }
     window.addEventListener('paste', onPaste)
     return () => window.removeEventListener('paste', onPaste)
@@ -121,33 +129,92 @@ export default function App() {
     })
   }
 
+  /** Ogni caricamento si somma a quello che c'e' gia': trascinare una seconda
+   *  foto non deve buttare via la prima. Con una sola immagine in tutto si
+   *  resta nella vista singola, con il confronto prima/dopo; dalla seconda in
+   *  poi si passa all'elenco.
+   */
   async function selectFiles(lista) {
-    const files = [...lista]
-    if (files.length === 1) {
-      setBlocco([])
-      return selectFile(files[0])
-    }
+    const arrivati = [...lista]
+    if (!arrivati.length) return
 
-    chiudiAnteprima()
-    scartaRisultatiBlocco()
-    setScarti(new Map())
-    setProgresso(null)
-    const { pronti, problemi } = await preparaFiles(files, { maxBytes: maxBytesRef.current })
+    const { blocco: bloccoOra, file: fileOra } = insiemeRef.current
+    // Identita' propria per ogni file: due foto possono chiamarsi allo stesso
+    // modo (capita prendendole da cartelle diverse) e il nome non basta a
+    // distinguerle, ne' come chiave di React ne' per ritrovarne il risultato.
+    const esistenti = bloccoOra.length
+      ? bloccoOra
+      : fileOra
+        ? [{ id: crypto.randomUUID(), file: fileOra }]
+        : []
+
+    if (!esistenti.length && arrivati.length === 1) return selectFile(arrivati[0])
+
+    const { pronti, problemi } = await preparaFiles(arrivati, { maxBytes: maxBytesRef.current })
     if (!pronti.length) {
       setError(problemi.join(' · ') || 'Nessuna immagine utilizzabile')
       return
     }
     setError(problemi.length ? `${problemi.length} scartate — ${problemi.join(' · ')}` : null)
-    setResult(null)
-    // Identita' propria per ogni file: due foto possono chiamarsi allo stesso
-    // modo (capita prendendole da cartelle diverse) e il nome non basta a
-    // distinguerle, ne' come chiave di React ne' per ritrovarne il risultato.
-    setBlocco(pronti.map((file) => ({ id: crypto.randomUUID(), file })))
+
+    // I risultati valevano per l'insieme di prima: cambiandolo vanno rifatti.
+    chiudiAnteprima()
+    scartaRisultatiBlocco()
+    setScarti(new Map())
+    setProgresso(null)
+    setResult((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url)
+      return null
+    })
+
+    setBlocco([...esistenti, ...pronti.map((file) => ({ id: crypto.randomUUID(), file }))])
     setFile(null)
     setOriginalUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
       return null
     })
+  }
+
+  /** Toglie una foto dall'elenco. Se ne resta una sola si torna alla vista
+   *  singola: un elenco da un elemento non serve, e produrrebbe uno ZIP con
+   *  dentro un file solo.
+   */
+  function rimuoviDalBlocco(id) {
+    if (anteprima?.chiave === id) chiudiAnteprima()
+    setScarti((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
+    // Lo ZIP conteneva anche l'immagine appena tolta: non e' piu' valido.
+    setResult((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url)
+      return null
+    })
+
+    const restanti = blocco.filter((voce) => voce.id !== id)
+    if (restanti.length === 1) {
+      const [solo] = restanti
+      scartaRisultatiBlocco()
+      setBlocco([])
+      setFile(solo.file)
+      setOriginalUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(solo.file)
+      })
+      return
+    }
+
+    setRisultatiBlocco((prev) => {
+      const url = prev.get(id)
+      if (!url) return prev
+      URL.revokeObjectURL(url)
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
+    setBlocco(restanti)
   }
 
   async function selectFile(next) {
@@ -356,6 +423,16 @@ export default function App() {
                           onClick={(e) => alternaAnteprima(id, file, e.currentTarget.closest('li'))}
                         >
                           {aperta ? 'Nascondi' : 'Anteprima'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-mini btn-mini--togli"
+                          title="Togli dall'elenco"
+                          aria-label={`Togli ${file.name} dall'elenco`}
+                          disabled={loading}
+                          onClick={() => rimuoviDalBlocco(id)}
+                        >
+                          ✕
                         </button>
                       </div>
                       {aperta &&

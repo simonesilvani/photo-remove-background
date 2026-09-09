@@ -308,6 +308,12 @@ select:focus-visible, .btn:focus-visible, .swatch:focus-visible, .dropzone:focus
 .cursore input[type='range'] { flex: 1; accent-color: var(--accent); }
 .cursore__valore { width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
 
+.btn-mini--togli {
+  padding-inline: 8px;
+  color: var(--text-dim);
+}
+.btn-mini--togli:hover:not(:disabled) { color: #fca5a5; border-color: #7f1d1d; }
+
 /* --- Azioni --- */
 .actions { display: flex; flex-direction: column; gap: 10px; }
 .btn {
