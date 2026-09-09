@@ -53,6 +53,34 @@ export default function App() {
       .catch(() => {})
   }, [])
 
+  // Un file rilasciato fuori dalla zona di caricamento viene *aperto* dal
+  // browser al posto della pagina. La zona pero' sparisce appena c'e'
+  // un'immagine, quindi dalla seconda in poi il rilascio cade sempre fuori: lo
+  // intercettiamo sulla finestra e lo trattiamo come un nuovo caricamento,
+  // esattamente come fa gia' ⌘V.
+  useEffect(() => {
+    const contieneFile = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files')
+    const onDragOver = (e) => {
+      if (contieneFile(e)) e.preventDefault()
+    }
+    const onDrop = (e) => {
+      if (!contieneFile(e)) return
+      // Se il rilascio e' finito nella zona di caricamento ha gia' fatto tutto
+      // lei: l'evento arriva qui comunque, ma con il default gia' annullato.
+      if (e.defaultPrevented) return
+      e.preventDefault()
+      if (loading) return
+      const files = [...e.dataTransfer.files]
+      if (files.length) selectFiles(files)
+    }
+    window.addEventListener('dragover', onDragOver)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragover', onDragOver)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [loading])
+
   useEffect(() => {
     const onPaste = (e) => {
       const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'))
