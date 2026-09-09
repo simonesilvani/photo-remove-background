@@ -15,10 +15,11 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 
 <br>
 
-<img src="docs/confronto.webp" alt="L'applicazione mostra la foto originale e il soggetto ritagliato, separati da una maniglia trascinabile" width="820">
+<img src="docs/demo.webp" alt="Due foto caricate insieme ed elaborate in blocco, il risultato di ciascuna confrontato con una maniglia che scorre fra originale e ritaglio, e un soggetto ricomposto su sfondo bianco" width="900">
 
-<sub>Trascina la maniglia per confrontare originale e risultato. L'immagine è
-<a href="https://commons.wikimedia.org/wiki/File:Michelangelo_-_Creation_of_Adam.jpg">La creazione di Adamo</a> di Michelangelo, pubblico dominio.</sub>
+<sub>Due immagini caricate insieme ed elaborate in blocco, il confronto prima/dopo su
+entrambe, e un terzo soggetto ricomposto su uno sfondo pieno. Registrazione dell'app,
+senza le pause e leggermente accelerata.</sub>
 
 </div>
 
@@ -52,13 +53,15 @@ API Python + interfaccia React. Gira tutto in locale: nessuna chiave, nessun ser
 <div align="center">
 
 <img src="docs/originale-affresco.webp" alt="L'affresco con il suo sfondo originale" width="49%">
-<img src="docs/originale-david.webp" alt="La foto del David con il suo sfondo originale" width="49%">
 <img src="docs/ritaglio-affresco.webp" alt="Lo stesso affresco con lo sfondo rimosso" width="49%">
-<img src="docs/ritaglio-david.webp" alt="Lo stesso David con lo sfondo rimosso, riccioli compresi" width="49%">
+<img src="docs/originale-gormiti.webp" alt="Due Gormiti fotografati su un tavolo di legno" width="32%">
+<img src="docs/ritaglio-gormiti.webp" alt="Gli stessi Gormiti ritagliati, con gli arti in plastica semitrasparente" width="32%">
 
-<sub><b>Sopra</b> le immagini di partenza, <b>sotto</b> lo stesso soggetto dopo la
-rimozione: la scacchiera è la trasparenza. A destra i riccioli dei capelli, il caso in cui
-l'alpha matting fa la differenza.</sub>
+<sub><b>A sinistra</b> le immagini di partenza, <b>a destra</b> lo stesso soggetto dopo la
+rimozione: la scacchiera è la trasparenza. Sotto, gli arti in plastica semitrasparente dei
+Gormiti — il tipo di bordo su cui i tre livelli si sentono. L'affresco è
+<a href="https://commons.wikimedia.org/wiki/File:Michelangelo_-_Creation_of_Adam.jpg">La creazione di Adamo</a>
+di Michelangelo, pubblico dominio.</sub>
 
 </div>
 
